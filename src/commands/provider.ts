@@ -140,18 +140,6 @@ function renderManifest(item: AstroBoxProviderPageItem): string {
     lines.push(`  author: ${authorStr}`);
   }
 
-  if (item.icon) {
-    lines.push(`  icon: ${item.icon}`);
-  }
-
-  if (item.cover) {
-    lines.push(`  cover: ${item.cover}`);
-  }
-
-  if (item.preview && item.preview.length > 0) {
-    lines.push(`  preview: ${item.preview.join(", ")}`);
-  }
-
   return lines.join("\n");
 }
 
