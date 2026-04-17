@@ -1,90 +1,50 @@
-# astrobox-cli
+# AstroBox CLI
 
-AstroBox command line interface starter built with **pnpm + TypeScript + Rolldown**.
+A command-line interface for interacting with [AstroBox](https://astrobox.online) — open the app, check status, and install local resources without leaving your terminal.
 
-## Requirements
-
-- Node.js 20+
-- pnpm
-
-## Setup
+## Installation
 
 ```bash
-pnpm install
+npm install -g astrobox-cli
 ```
 
-## Development
-
-Watch and rebuild on changes:
+Or run directly with `npx`:
 
 ```bash
-pnpm dev
+npx astrobox-cli <command>
 ```
 
-Run the built CLI:
+Requires Node.js >= 20.
 
-```bash
-node dist/cli.js --help
-node dist/cli.js status
+## Usage
+
+```
+astrobox [options] [command]
+
+Options:
+  -v, --version   display the current version
+  -h, --help      display help for command
+
+Commands:
+  open [options]  Launch AstroBox via astrobox:// protocol
+  status          Query AstroBox connection status
+  install <path>  Install a local resource file through AstroBox
+  help [command]  display help for command
 ```
 
-Link it globally for local testing:
+### `astrobox open`
 
-```bash
-pnpm link --global
-astrobox --help
-```
-
-## Build
-
-```bash
-pnpm build
-```
-
-## Publish to npm
-
-1. Update `name` in `package.json` if needed.
-2. Make sure the package name is available.
-3. Login to npm:
-
-```bash
-npm login
-```
-
-4. Publish:
-
-```bash
-npm publish
-```
-
-For a scoped package, use:
-
-```bash
-npm publish --access public
-```
-
-## Commands
-
-### Open AstroBox app
-
-Launch AstroBox via the `astrobox://` protocol:
+Opens AstroBox using the `astrobox://` protocol URL.
 
 ```bash
 astrobox open
+# or with a custom URL
+astrobox open --url astrobox://workspace
 ```
 
-You can also pass a custom protocol URL:
+### `astrobox status`
 
-```bash
-astrobox open --url "astrobox://some-action"
-```
-
-### Query connection status
-
-Calls the local AstroBox API:
-
-- Base URL: `http://127.0.0.1:10721`
-- Endpoint: `GET /status`
+Queries the local AstroBox API to check whether it's running and lists connected devices.
 
 ```bash
 astrobox status
@@ -92,58 +52,40 @@ astrobox status
 
 Example output:
 
-```txt
+```
 AstroBox: connected
-Devices: 1
-- Xiaomi Band 9 (AA:BB:CC:DD:EE:FF)
+Devices: 2
+- Pixel 8 (192.168.1.42)
+- Galaxy S23 (192.168.1.55)
 ```
 
-If AstroBox is running but no device is connected yet:
+### `astrobox install <path>`
 
-```txt
-AstroBox: connected
-Devices: 0
-```
-
-### Install a local resource
-
-Calls the local AstroBox API:
-
-- Base URL: `http://127.0.0.1:10721`
-- Endpoint: `POST /resource/install`
-- The CLI accepts any local file path and resolves it to an absolute path from the current working directory
+Sends a local file to AstroBox for installation. The path is resolved relative to the current working directory.
 
 ```bash
-astrobox install ./resources/watchface.bin
+astrobox install ./app.apk
 ```
 
-The request body sent by the CLI is:
-
-```json
-{
-  "path": "/absolute/path/from/current/working/directory/resources/watchface.bin"
-}
-```
-
-### Summary
+## Development
 
 ```bash
-astrobox --help
-astrobox --version
-astrobox open
-astrobox status
-astrobox install ./resources/watchface.bin
+# Install dependencies
+pnpm install
+
+# Development watch mode
+pnpm dev
+
+# Type check
+pnpm typecheck
+
+# Build for production
+pnpm build
+
+# Run CLI locally
+pnpm cli <command>
 ```
 
-## Project structure
+## License
 
-```text
-.
-├─ src/
-│  └─ cli.ts
-├─ dist/
-├─ package.json
-├─ rolldown.config.ts
-├─ tsconfig.json
-└─ README.md
-```
+MIT
