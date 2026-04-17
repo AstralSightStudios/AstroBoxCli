@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { Command } from "commander";
 
+import { createDeviceCommand } from "./commands/device";
 import { createInstallCommand } from "./commands/install";
 import { createOpenCommand } from "./commands/open";
 import { createStatusCommand } from "./commands/status";
@@ -24,7 +25,8 @@ program
   .version(packageJson.version, "-v, --version", "display the current version")
   .addCommand(createOpenCommand())
   .addCommand(createStatusCommand())
-  .addCommand(createInstallCommand());
+  .addCommand(createInstallCommand())
+  .addCommand(createDeviceCommand());
 
 program.parseAsync().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);

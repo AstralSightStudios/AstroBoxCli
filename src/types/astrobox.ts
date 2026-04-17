@@ -15,3 +15,34 @@ export type AstroBoxInstallResponse = {
   message?: string;
   [key: string]: unknown;
 };
+
+export type AstroBoxDeviceDetail = {
+  name: string;
+  addr: string;
+  authkey: string;
+  connected: boolean;
+  sarVersion: number;
+  txWinOverrunAllowance: number;
+  connectType: string;
+};
+
+export type AstroBoxDeviceListResponse = {
+  ok: boolean;
+  device_count: number;
+  devices: AstroBoxDeviceDetail[];
+};
+
+export type AstroBoxConnectRequest = {
+  name: string;
+  addr: string;
+  authkey: string;
+  sarVersion?: number;
+  txWinOverrunAllowance?: number;
+  connectType?: "SPP" | "BLE";
+};
+
+export type AstroBoxConnectResponse = {
+  ok: boolean;
+  message?: string;
+  [key: string]: unknown;
+};
