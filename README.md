@@ -38,8 +38,6 @@ Opens AstroBox using the `astrobox://` protocol URL.
 
 ```bash
 astrobox open
-# or with a custom URL
-astrobox open --url astrobox://workspace
 ```
 
 ### `astrobox status`
@@ -54,17 +52,16 @@ Example output:
 
 ```
 AstroBox: connected
-Devices: 2
-- Pixel 8 (192.168.1.42)
-- Galaxy S23 (192.168.1.55)
+Devices: 1
+- Xiaomi Smart Band 9 Pro C692 (3C:AF:B7:ED:C6:92)
 ```
 
 ### `astrobox install <path>`
 
-Sends a local file to AstroBox for installation. The path is resolved relative to the current working directory.
+Sends a local file to AstroBox for installation.
 
 ```bash
-astrobox install ./app.apk
+astrobox install ./app.rpk
 ```
 
 ## Development
