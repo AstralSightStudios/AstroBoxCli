@@ -5,11 +5,20 @@ import type {
   AstroBoxProviderCategoriesResponse,
   AstroBoxProviderItemResponse,
   AstroBoxProviderListResponse,
+  AstroBoxProviderPageItem,
   AstroBoxProviderPageResponse,
   AstroBoxProviderRefreshRequest,
   AstroBoxProviderStateResponse,
   AstroBoxProviderTotalResponse,
 } from "../types/astrobox";
+
+function renderPageItem(item: AstroBoxProviderPageItem): string {
+  const lines = [`[${item.restype}] ${item.name}`, `  id: ${item.id}`];
+  if (item.description) {
+    lines.push(`  ${item.description}`);
+  }
+  return lines.join("\n");
+}
 
 function createListCommand(): Command {
   return new Command("list")
@@ -91,7 +100,10 @@ function createPageCommand(): Command {
         `/provider/${name}/page?${params.toString()}`
       );
 
-      console.log(JSON.stringify(result, null, 2));
+      console.log(`Page ${result.page} · ${result.items.length} items\n`);
+      for (const item of result.items) {
+        console.log(renderPageItem(item));
+      }
     });
 }
 

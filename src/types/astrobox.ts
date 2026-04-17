@@ -68,12 +68,23 @@ export type AstroBoxProviderRefreshRequest = {
   cfg: string;
 };
 
+export type AstroBoxProviderPageItem = {
+  id: string;
+  restype: string;
+  name: string;
+  description?: string;
+  preview?: string[];
+  icon?: string;
+  cover?: string;
+  author?: string[];
+};
+
 export type AstroBoxProviderPageResponse = {
   ok: boolean;
   name: string;
   page: number;
   limit: number;
-  items: unknown[];
+  items: AstroBoxProviderPageItem[];
 };
 
 export type AstroBoxProviderItemResponse = {
