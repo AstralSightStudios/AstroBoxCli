@@ -1,6 +1,7 @@
 import { Command } from "commander";
 
 import { requestAstroBox } from "../lib/api";
+import { fail } from "../lib/errors";
 import type {
   AstroBoxProviderCategoriesResponse,
   AstroBoxProviderDownloadResponse,
@@ -80,7 +81,7 @@ function createPageCommand(): Command {
   return new Command("page")
     .description("Get provider paginated content")
     .argument("<name>", "provider name")
-    .option("--page <page>", "page number", "1")
+    .option("--page <page>", "page number (1-based)", "1")
     .option("--limit <limit>", "items per page", "20")
     .option("--keyword <keyword>", "search keyword")
     .option("--category <category>", "category filter (comma-separated)")
@@ -92,9 +93,22 @@ function createPageCommand(): Command {
       category?: string;
       sort: string;
     }) => {
+      const inputPage = Number.parseInt(options.page, 10);
+      const inputLimit = Number.parseInt(options.limit, 10);
+
+      if (!Number.isInteger(inputPage) || inputPage < 1) {
+        fail("--page must be an integer >= 1");
+      }
+      if (!Number.isInteger(inputLimit) || inputLimit < 1) {
+        fail("--limit must be an integer >= 1");
+      }
+
+      // AstroBox API uses 0-based page index, CLI uses 1-based page number.
+      const apiPage = inputPage - 1;
+
       const params = new URLSearchParams();
-      params.append("page", options.page);
-      params.append("limit", options.limit);
+      params.append("page", String(apiPage));
+      params.append("limit", String(inputLimit));
       if (options.keyword) params.append("keyword", options.keyword);
       if (options.category) params.append("category", options.category);
       params.append("sort", options.sort);
@@ -103,7 +117,7 @@ function createPageCommand(): Command {
         `/provider/${name}/page?${params.toString()}`
       );
 
-      console.log(`Page ${result.page} · ${result.items.length} items\n`);
+      console.log(`Page ${inputPage} · ${result.items.length} items\n`);
       for (const item of result.items) {
         console.log(renderPageItem(item));
       }

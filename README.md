@@ -19,7 +19,7 @@ Requires Node.js >= 20.
 ## Usage
 
 ```
-abcli [options] [command]
+astrobox-cli [options] [command]
 
 Options:
   -v, --version   display the current version
@@ -34,22 +34,22 @@ Commands:
   help [command]     display help for command
 ```
 
-### `abcli open`
+### `astrobox-cli open`
 
 Opens AstroBox using the `astrobox://` protocol URL.
 
 ```bash
-abcli open
+astrobox-cli open
 # or with a custom URL
-abcli open --url astrobox://workspace
+astrobox-cli open --url astrobox://workspace
 ```
 
-### `abcli status`
+### `astrobox-cli status`
 
 Queries the local AstroBox API to check whether it's running and lists connected devices.
 
 ```bash
-abcli status
+astrobox-cli status
 ```
 
 Example output:
@@ -60,27 +60,27 @@ Devices: 2
 - Xiaomi Smart Band 9 Pro C692 (3C:AF:B7:ED:C6:92) [connected]
 ```
 
-### `abcli install <path>`
+### `astrobox-cli install <path>`
 
 Sends a local file to AstroBox for installation.
 
 ```bash
-abcli install ./app.rpk
+astrobox-cli install ./app.rpk
 ```
 
-### `abcli device`
+### `astrobox-cli device`
 
 Manage saved devices.
 
 ```bash
 # List all devices
-abcli device list
+astrobox-cli device list
 
 # Show full details for a device (including authkey)
-abcli device show <addr>
+astrobox-cli device show <addr>
 
 # Connect a new device
-abcli device connect \
+astrobox-cli device connect \
   --name "Xiaomi Smart Band 9 Pro C692" \
   --addr "3C:AF:B7:ED:C6:92" \
   --authkey "your-authkey"
@@ -94,35 +94,35 @@ Optional flags for `connect`:
 | `--txWinOverrunAllowance` | — | TX window overrun allowance |
 | `--connectType` | `SPP` | `SPP` or `BLE` |
 
-### `abcli provider`
+### `astrobox-cli provider`
 
 Browse and interact with resource providers.
 
 ```bash
 # List all providers
-abcli provider list
+astrobox-cli provider list
 
 # Get provider state (Ready / Updating / Failed...)
-abcli provider state OfficialV2
+astrobox-cli provider state OfficialV2
 
 # Get category list
-abcli provider categories OfficialV2
+astrobox-cli provider categories OfficialV2
 
 # Refresh provider cache
-abcli provider refresh OfficialV2
-abcli provider refresh OfficialV2 --cfg "..."
+astrobox-cli provider refresh OfficialV2
+astrobox-cli provider refresh OfficialV2 --cfg "..."
 
 # Get total item count
-abcli provider total OfficialV2
+astrobox-cli provider total OfficialV2
 
 # Paginated content
-abcli provider page OfficialV2 --page 1 --limit 10 --category watchface --sort time
+astrobox-cli provider page OfficialV2 --page 1 --limit 10 --category watchface --sort time
 
 # Get item detail
-abcli provider item OfficialV2 <id>
+astrobox-cli provider item OfficialV2 <id>
 
 # Resolve download link
-abcli provider download OfficialV2 \
+astrobox-cli provider download OfficialV2 \
   --id <id> \
   --device xmb9p \
   --downloadKey xmb9p
@@ -132,11 +132,13 @@ abcli provider download OfficialV2 \
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--page` | `1` | Page number |
+| `--page` | `1` | Page number (1-based) |
 | `--limit` | `20` | Items per page |
 | `--keyword` | — | Search keyword |
 | `--category` | — | Comma-separated categories |
 | `--sort` | `time` | `time` / `name` / `random` |
+
+> Note: AstroBox local API uses 0-based `page`, but CLI `--page` is 1-based for easier use.
 
 `download` options:
 
