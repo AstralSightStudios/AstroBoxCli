@@ -81,3 +81,9 @@ export type AstroBoxProviderItemResponse = {
   name: string;
   item: Record<string, unknown>;
 };
+
+export type AstroBoxProviderTotalResponse = {
+  ok: boolean;
+  name: string;
+  total: number;
+};

@@ -8,6 +8,7 @@ import type {
   AstroBoxProviderPageResponse,
   AstroBoxProviderRefreshRequest,
   AstroBoxProviderStateResponse,
+  AstroBoxProviderTotalResponse,
 } from "../types/astrobox";
 
 function createListCommand(): Command {
@@ -105,6 +106,16 @@ function createItemCommand(): Command {
     });
 }
 
+function createTotalCommand(): Command {
+  return new Command("total")
+    .description("Get total item count for a provider")
+    .argument("<name>", "provider name")
+    .action(async (name: string) => {
+      const result = await requestAstroBox<AstroBoxProviderTotalResponse>(`/provider/${name}/total`);
+      console.log(result.total);
+    });
+}
+
 export function createProviderCommand(): Command {
   return new Command("provider")
     .description("Manage AstroBox providers")
@@ -113,5 +124,6 @@ export function createProviderCommand(): Command {
     .addCommand(createCategoriesCommand())
     .addCommand(createRefreshCommand())
     .addCommand(createPageCommand())
-    .addCommand(createItemCommand());
+    .addCommand(createItemCommand())
+    .addCommand(createTotalCommand());
 }
