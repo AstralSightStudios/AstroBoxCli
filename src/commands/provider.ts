@@ -3,6 +3,8 @@ import { Command } from "commander";
 import { requestAstroBox } from "../lib/api";
 import type {
   AstroBoxProviderCategoriesResponse,
+  AstroBoxProviderItemDownload,
+  AstroBoxProviderItemLink,
   AstroBoxProviderItemResponse,
   AstroBoxProviderListResponse,
   AstroBoxProviderPageItem,
@@ -107,18 +109,35 @@ function createPageCommand(): Command {
     });
 }
 
-function renderProviderItem(item: AstroBoxProviderPageItem): string {
+function formatAuthor(
+  author: AstroBoxProviderPageItem["author"]
+): string | undefined {
+  if (!author || author.length === 0) return undefined;
+
+  if (typeof author[0] === "string") {
+    return (author as string[]).join(", ");
+  }
+
+  return (author as Array<{ name: string }>)
+    .map((a) => a.name)
+    .join(", ");
+}
+
+function renderManifest(item: AstroBoxProviderPageItem): string {
   const lines: string[] = [];
 
   lines.push(`[${item.restype}] ${item.name}`);
-  lines.push(`  id: ${item.id}`);
+  if (item.id) {
+    lines.push(`  id: ${item.id}`);
+  }
 
   if (item.description) {
     lines.push(`  ${item.description}`);
   }
 
-  if (item.author && item.author.length > 0) {
-    lines.push(`  author: ${item.author.join(", ")}`);
+  const authorStr = formatAuthor(item.author);
+  if (authorStr) {
+    lines.push(`  author: ${authorStr}`);
   }
 
   if (item.icon) {
@@ -136,6 +155,27 @@ function renderProviderItem(item: AstroBoxProviderPageItem): string {
   return lines.join("\n");
 }
 
+function renderLinks(links: AstroBoxProviderItemLink[]): string {
+  if (links.length === 0) return "";
+  return ["", "Links:", ...links.map((l) => `  [${l.icon}] ${l.title}: ${l.url}`)].join("\n");
+}
+
+function renderDownloads(
+  downloads: Record<string, AstroBoxProviderItemDownload>
+): string {
+  const entries = Object.entries(downloads);
+  if (entries.length === 0) return "";
+
+  const lines = ["", "Downloads:"];
+  for (const [key, d] of entries) {
+    lines.push(`  ${d.display_name} (${key})`);
+    lines.push(`    version: ${d.version}`);
+    lines.push(`    file: ${d.file_name}`);
+  }
+
+  return lines.join("\n");
+}
+
 function createItemCommand(): Command {
   return new Command("item")
     .description("Get a specific item from a provider")
@@ -143,7 +183,17 @@ function createItemCommand(): Command {
     .argument("<id>", "item id")
     .action(async (name: string, id: string) => {
       const result = await requestAstroBox<AstroBoxProviderItemResponse>(`/provider/${name}/item/${id}`);
-      console.log(renderProviderItem(result.item as AstroBoxProviderPageItem));
+      const data = result.item;
+
+      const output = [
+        renderManifest(data.item),
+        renderLinks(data.links),
+        renderDownloads(data.downloads),
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      console.log(output);
     });
 }
 

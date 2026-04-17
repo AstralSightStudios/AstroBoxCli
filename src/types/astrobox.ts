@@ -76,7 +76,7 @@ export type AstroBoxProviderPageItem = {
   preview?: string[];
   icon?: string;
   cover?: string;
-  author?: string[];
+  author?: string[] | Array<{ name: string; bindABAccount?: boolean }>;
 };
 
 export type AstroBoxProviderPageResponse = {
@@ -87,10 +87,31 @@ export type AstroBoxProviderPageResponse = {
   items: AstroBoxProviderPageItem[];
 };
 
+export type AstroBoxProviderItemLink = {
+  icon: string;
+  title: string;
+  url: string;
+};
+
+export type AstroBoxProviderItemDownload = {
+  version: string;
+  file_name: string;
+  versionCode: number | null;
+  url: string | null;
+  sha256: string | null;
+  display_name: string;
+  updatelogs: string | null;
+};
+
 export type AstroBoxProviderItemResponse = {
   ok: boolean;
   name: string;
-  item: Record<string, unknown>;
+  item: {
+    item: AstroBoxProviderPageItem;
+    links: AstroBoxProviderItemLink[];
+    downloads: Record<string, AstroBoxProviderItemDownload>;
+    ext: Record<string, unknown>;
+  };
 };
 
 export type AstroBoxProviderTotalResponse = {
