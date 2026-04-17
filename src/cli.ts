@@ -6,6 +6,7 @@ import { Command } from "commander";
 
 import { createDeviceCommand } from "./commands/device";
 import { createInstallCommand } from "./commands/install";
+import { createProviderCommand } from "./commands/provider";
 import { createOpenCommand } from "./commands/open";
 import { createStatusCommand } from "./commands/status";
 import { fail } from "./lib/errors";
@@ -26,7 +27,8 @@ program
   .addCommand(createOpenCommand())
   .addCommand(createStatusCommand())
   .addCommand(createInstallCommand())
-  .addCommand(createDeviceCommand());
+  .addCommand(createDeviceCommand())
+  .addCommand(createProviderCommand());
 
 program.parseAsync().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);

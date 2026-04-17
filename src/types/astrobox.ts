@@ -46,3 +46,38 @@ export type AstroBoxConnectResponse = {
   message?: string;
   [key: string]: unknown;
 };
+
+export type AstroBoxProviderListResponse = {
+  ok: boolean;
+  providers: string[];
+};
+
+export type AstroBoxProviderStateResponse = {
+  ok: boolean;
+  name: string;
+  state: string;
+};
+
+export type AstroBoxProviderCategoriesResponse = {
+  ok: boolean;
+  name: string;
+  categories: string[];
+};
+
+export type AstroBoxProviderRefreshRequest = {
+  cfg: string;
+};
+
+export type AstroBoxProviderPageResponse = {
+  ok: boolean;
+  name: string;
+  page: number;
+  limit: number;
+  items: unknown[];
+};
+
+export type AstroBoxProviderItemResponse = {
+  ok: boolean;
+  name: string;
+  item: Record<string, unknown>;
+};
