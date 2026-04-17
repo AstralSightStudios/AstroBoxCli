@@ -107,6 +107,35 @@ function createPageCommand(): Command {
     });
 }
 
+function renderProviderItem(item: AstroBoxProviderPageItem): string {
+  const lines: string[] = [];
+
+  lines.push(`[${item.restype}] ${item.name}`);
+  lines.push(`  id: ${item.id}`);
+
+  if (item.description) {
+    lines.push(`  ${item.description}`);
+  }
+
+  if (item.author && item.author.length > 0) {
+    lines.push(`  author: ${item.author.join(", ")}`);
+  }
+
+  if (item.icon) {
+    lines.push(`  icon: ${item.icon}`);
+  }
+
+  if (item.cover) {
+    lines.push(`  cover: ${item.cover}`);
+  }
+
+  if (item.preview && item.preview.length > 0) {
+    lines.push(`  preview: ${item.preview.join(", ")}`);
+  }
+
+  return lines.join("\n");
+}
+
 function createItemCommand(): Command {
   return new Command("item")
     .description("Get a specific item from a provider")
@@ -114,7 +143,7 @@ function createItemCommand(): Command {
     .argument("<id>", "item id")
     .action(async (name: string, id: string) => {
       const result = await requestAstroBox<AstroBoxProviderItemResponse>(`/provider/${name}/item/${id}`);
-      console.log(JSON.stringify(result, null, 2));
+      console.log(renderProviderItem(result.item as AstroBoxProviderPageItem));
     });
 }
 
