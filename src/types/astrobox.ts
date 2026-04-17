@@ -114,6 +114,16 @@ export type AstroBoxProviderItemResponse = {
   };
 };
 
+export type AstroBoxProviderDownloadResponse = {
+  ok: boolean;
+  name: string;
+  id: string;
+  downloadKey: string;
+  device?: string;
+  trial: boolean;
+  download: AstroBoxProviderItemDownload;
+};
+
 export type AstroBoxProviderTotalResponse = {
   ok: boolean;
   name: string;

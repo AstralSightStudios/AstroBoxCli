@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { requestAstroBox } from "../lib/api";
 import type {
   AstroBoxProviderCategoriesResponse,
+  AstroBoxProviderDownloadResponse,
   AstroBoxProviderItemDownload,
   AstroBoxProviderItemLink,
   AstroBoxProviderItemResponse,
@@ -195,6 +196,38 @@ function createTotalCommand(): Command {
     });
 }
 
+function createDownloadCommand(): Command {
+  return new Command("download")
+    .description("Resolve download link for an item")
+    .argument("<name>", "provider name")
+    .requiredOption("--id <id>", "resource id")
+    .option("--downloadKey <key>", "download entry key")
+    .option("--device <device>", "device key (required for some OfficialV2 items)")
+    .option("--trial", "trial download", false)
+    .action(async (name: string, options: {
+      id: string;
+      downloadKey?: string;
+      device?: string;
+      trial: boolean;
+    }) => {
+      const params = new URLSearchParams();
+      params.append("id", options.id);
+      if (options.downloadKey) params.append("downloadKey", options.downloadKey);
+      if (options.device) params.append("device", options.device);
+      params.append("trial", String(options.trial));
+
+      const result = await requestAstroBox<AstroBoxProviderDownloadResponse>(
+        `/provider/${name}/download?${params.toString()}`
+      );
+
+      const d = result.download;
+      console.log(`${d.display_name}`);
+      console.log(`  version: ${d.version}`);
+      console.log(`  file:    ${d.file_name}`);
+      console.log(`  url:     ${d.url}`);
+    });
+}
+
 export function createProviderCommand(): Command {
   return new Command("provider")
     .description("Manage AstroBox providers")
@@ -204,5 +237,6 @@ export function createProviderCommand(): Command {
     .addCommand(createRefreshCommand())
     .addCommand(createPageCommand())
     .addCommand(createItemCommand())
-    .addCommand(createTotalCommand());
+    .addCommand(createTotalCommand())
+    .addCommand(createDownloadCommand());
 }
