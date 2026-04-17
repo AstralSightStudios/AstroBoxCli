@@ -4,7 +4,7 @@
   "description": "AstroBox command line interface",
   "type": "module",
   "bin": {
-    "astrobox": "./dist/cli.js"
+    "abcli": "./dist/cli.js"
   },
   "files": [
     "dist",

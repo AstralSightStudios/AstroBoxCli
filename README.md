@@ -11,7 +11,7 @@ npm install -g astrobox-cli
 Or run directly with `npx`:
 
 ```bash
-npx astrobox-cli <command>
+npx abcli <command>
 ```
 
 Requires Node.js >= 20.
@@ -19,7 +19,7 @@ Requires Node.js >= 20.
 ## Usage
 
 ```
-astrobox [options] [command]
+abcli [options] [command]
 
 Options:
   -v, --version   display the current version
@@ -32,20 +32,20 @@ Commands:
   help [command]  display help for command
 ```
 
-### `astrobox open`
+### `abcli open`
 
 Opens AstroBox using the `astrobox://` protocol URL.
 
 ```bash
-astrobox open
+abcli open
 ```
 
-### `astrobox status`
+### `abcli status`
 
 Queries the local AstroBox API to check whether it's running and lists connected devices.
 
 ```bash
-astrobox status
+abcli status
 ```
 
 Example output:
@@ -56,12 +56,12 @@ Devices: 1
 - Xiaomi Smart Band 9 Pro C692 (3C:AF:B7:ED:C6:92)
 ```
 
-### `astrobox install <path>`
+### `abcli install <path>`
 
 Sends a local file to AstroBox for installation.
 
 ```bash
-astrobox install ./app.rpk
+abcli install ./app.rpk
 ```
 
 ## Development

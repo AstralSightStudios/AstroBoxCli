@@ -21,7 +21,7 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
 const program = new Command();
 
 program
-  .name("astrobox")
+  .name("abcli")
   .description("AstroBox CLI")
   .version(packageJson.version, "-v, --version", "display the current version")
   .addCommand(createOpenCommand())
