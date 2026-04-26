@@ -11,9 +11,35 @@ export type AstroBoxStatusResponse = {
 };
 
 export type AstroBoxInstallResponse = {
-  ok?: boolean;
-  message?: string;
-  [key: string]: unknown;
+  ok: boolean;
+  message: string;
+  taskId: string | null;
+};
+
+export type AstroBoxQueueTaskItem = {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  icon: string;
+  progress: number;
+  status: string;
+  fileSize: string;
+  progressDesc: string;
+  watchfaceId: string | null;
+  canModifyId: boolean;
+};
+
+export type AstroBoxQueueListStatus = {
+  status: string;
+  progress: number;
+  items: AstroBoxQueueTaskItem[];
+};
+
+export type AstroBoxQueueStatusResponse = {
+  ok: boolean;
+  download: AstroBoxQueueListStatus;
+  install: AstroBoxQueueListStatus;
 };
 
 export type AstroBoxDeviceDetail = {
@@ -128,4 +154,24 @@ export type AstroBoxProviderTotalResponse = {
   ok: boolean;
   name: string;
   total: number;
+};
+
+export type AstroBoxQueueStartResponse = {
+  ok: boolean;
+  message: string;
+};
+
+export type AstroBoxQueueStopResponse = {
+  ok: boolean;
+  message: string;
+};
+
+export type AstroBoxQueueRemoveRequest = {
+  taskId: string;
+  queue: "install" | "download";
+};
+
+export type AstroBoxQueueRemoveResponse = {
+  ok: boolean;
+  message: string;
 };

@@ -29,6 +29,7 @@ Commands:
   open [options]     Launch AstroBox via astrobox:// protocol
   status             Query AstroBox connection status
   install <path>     Install a local resource file through AstroBox
+  queue              Manage install queue
   device             Manage AstroBox devices
   provider           Manage AstroBox providers
   help [command]     display help for command
@@ -62,11 +63,52 @@ Devices: 2
 
 ### `astrobox-cli install <path>`
 
-Sends a local file to AstroBox for installation.
+Sends a local file to AstroBox for installation. This is a convenience alias for `astrobox-cli queue install`.
 
 ```bash
 astrobox-cli install ./app.rpk
+# or wait for installation to complete and show progress
+astrobox-cli install ./app.rpk --wait
 ```
+
+With `--wait`, the CLI polls the queue status every second and displays a live progress table. If an error occurs, the error message is shown and the process exits with a non-zero code.
+
+### `astrobox-cli queue`
+
+Manage the install queue.
+
+```bash
+# Show current install queue status (tasks, progress, descriptions)
+astrobox-cli queue status
+
+# Add a file to the install queue
+astrobox-cli queue install ./app.rpk
+# with --wait
+astrobox-cli queue install ./app.rpk --wait
+
+# Start the install queue processor
+astrobox-cli queue start
+
+# Stop the install queue processor
+astrobox-cli queue stop
+
+# Remove a task from the queue
+astrobox-cli queue remove /path/to/app.rpk
+# remove from download queue instead
+astrobox-cli queue remove /path/to/app.rpk --queue download
+```
+
+`queue status` output example:
+
+```
+Install: running (45%)
+
+Name                 | Type         | Progress   | Status     | Description
+---------------------+--------------+------------+------------+---------------------
+Cool Watchface       | watchface    | 45%        | running    | Installing...
+```
+
+If a task enters `error` status while the queue is `pending`, the table is printed followed by an error message and a non-zero exit.
 
 ### `astrobox-cli device`
 

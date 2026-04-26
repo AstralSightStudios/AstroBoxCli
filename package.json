@@ -1,6 +1,6 @@
 {
   "name": "astrobox-cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "AstroBox command line interface",
   "type": "module",
   "bin": {

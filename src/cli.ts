@@ -7,6 +7,7 @@ import { Command } from "commander";
 import { createDeviceCommand } from "./commands/device";
 import { createInstallCommand } from "./commands/install";
 import { createProviderCommand } from "./commands/provider";
+import { createQueueCommand } from "./commands/queue";
 import { createOpenCommand } from "./commands/open";
 import { createStatusCommand } from "./commands/status";
 import { fail } from "./lib/errors";
@@ -27,6 +28,7 @@ program
   .addCommand(createOpenCommand())
   .addCommand(createStatusCommand())
   .addCommand(createInstallCommand())
+  .addCommand(createQueueCommand())
   .addCommand(createDeviceCommand())
   .addCommand(createProviderCommand());
 
