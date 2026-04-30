@@ -77,6 +77,40 @@ function createRefreshCommand(): Command {
     });
 }
 
+interface PageOptions {
+  page: string;
+  limit: string;
+  keyword?: string;
+  category?: string;
+  sort: string;
+}
+
+function parsePositiveInt(value: string, flagName: string): number {
+  const n = Number.parseInt(value, 10);
+  if (!Number.isInteger(n) || n < 1) {
+    fail(`${flagName} must be an integer >= 1`);
+  }
+  return n;
+}
+
+function parsePaginationOptions(options: PageOptions): { inputPage: number; inputLimit: number; apiPage: number } {
+  const inputPage = parsePositiveInt(options.page, "--page");
+  const inputLimit = parsePositiveInt(options.limit, "--limit");
+
+  // AstroBox API uses 0-based page index, CLI uses 1-based page number.
+  return { inputPage, inputLimit, apiPage: inputPage - 1 };
+}
+
+function buildPageParams(apiPage: number, limit: number, options: PageOptions): URLSearchParams {
+  const params = new URLSearchParams();
+  params.append("page", String(apiPage));
+  params.append("limit", String(limit));
+  if (options.keyword) params.append("keyword", options.keyword);
+  if (options.category) params.append("category", options.category);
+  params.append("sort", options.sort);
+  return params;
+}
+
 function createPageCommand(): Command {
   return new Command("page")
     .description("Get provider paginated content")
@@ -86,32 +120,9 @@ function createPageCommand(): Command {
     .option("--keyword <keyword>", "search keyword")
     .option("--category <category>", "category filter (comma-separated)")
     .option("--sort <sort>", "sort by: time | name | random", "time")
-    .action(async (name: string, options: {
-      page: string;
-      limit: string;
-      keyword?: string;
-      category?: string;
-      sort: string;
-    }) => {
-      const inputPage = Number.parseInt(options.page, 10);
-      const inputLimit = Number.parseInt(options.limit, 10);
-
-      if (!Number.isInteger(inputPage) || inputPage < 1) {
-        fail("--page must be an integer >= 1");
-      }
-      if (!Number.isInteger(inputLimit) || inputLimit < 1) {
-        fail("--limit must be an integer >= 1");
-      }
-
-      // AstroBox API uses 0-based page index, CLI uses 1-based page number.
-      const apiPage = inputPage - 1;
-
-      const params = new URLSearchParams();
-      params.append("page", String(apiPage));
-      params.append("limit", String(inputLimit));
-      if (options.keyword) params.append("keyword", options.keyword);
-      if (options.category) params.append("category", options.category);
-      params.append("sort", options.sort);
+    .action(async (name: string, options: PageOptions) => {
+      const { inputPage, inputLimit, apiPage } = parsePaginationOptions(options);
+      const params = buildPageParams(apiPage, inputLimit, options);
 
       const result = await requestAstroBox<AstroBoxProviderPageResponse>(
         `/provider/${name}/page?${params.toString()}`

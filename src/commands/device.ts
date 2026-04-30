@@ -61,6 +61,54 @@ function createShowCommand(): Command {
     });
 }
 
+interface ConnectOptions {
+  name: string;
+  addr: string;
+  authkey: string;
+  sarVersion: string;
+  txWinOverrunAllowance?: string;
+  connectType: string;
+}
+
+function buildConnectBody(options: ConnectOptions): AstroBoxConnectRequest {
+  const body: AstroBoxConnectRequest = {
+    name: options.name,
+    addr: options.addr,
+    authkey: options.authkey,
+    sarVersion: Number(options.sarVersion),
+    connectType: options.connectType as "SPP" | "BLE",
+  };
+
+  if (options.txWinOverrunAllowance !== undefined) {
+    body.txWinOverrunAllowance = Number(options.txWinOverrunAllowance);
+  }
+
+  if (body.connectType !== "SPP" && body.connectType !== "BLE") {
+    fail(`Invalid connectType: ${body.connectType}. Must be "SPP" or "BLE".`);
+  }
+
+  return body;
+}
+
+async function sendConnectRequest(body: AstroBoxConnectRequest): Promise<AstroBoxConnectResponse> {
+  return requestAstroBox<AstroBoxConnectResponse>("/device/connect", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function handleConnectResult(result: AstroBoxConnectResponse, name: string, addr: string): void {
+  if (result.ok) {
+    console.log(`Connected to ${name} (${addr})`);
+  } else {
+    const msg = result.message ?? "Unknown error";
+    fail(`Failed to connect: ${msg}`);
+  }
+}
+
 function createConnectCommand(): Command {
   return new Command("connect")
     .description("Add and connect a new device")
@@ -70,46 +118,12 @@ function createConnectCommand(): Command {
     .option("--sarVersion <version>", "SAR version", "2")
     .option("--txWinOverrunAllowance <allowance>", "TX window overrun allowance")
     .option("--connectType <type>", "connection type (SPP or BLE)", "SPP")
-    .action(async (options: {
-      name: string;
-      addr: string;
-      authkey: string;
-      sarVersion: string;
-      txWinOverrunAllowance?: string;
-      connectType: string;
-    }) => {
-      const body: AstroBoxConnectRequest = {
-        name: options.name,
-        addr: options.addr,
-        authkey: options.authkey,
-        sarVersion: Number(options.sarVersion),
-        connectType: options.connectType as "SPP" | "BLE",
-      };
-
-      if (options.txWinOverrunAllowance !== undefined) {
-        body.txWinOverrunAllowance = Number(options.txWinOverrunAllowance);
-      }
-
-      if (body.connectType !== "SPP" && body.connectType !== "BLE") {
-        fail(`Invalid connectType: ${body.connectType}. Must be "SPP" or "BLE".`);
-      }
+    .action(async (options: ConnectOptions) => {
+      const body = buildConnectBody(options);
 
       console.log("Connecting...");
-
-      const result = await requestAstroBox<AstroBoxConnectResponse>("/device/connect", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (result.ok) {
-        console.log(`Connected to ${options.name} (${options.addr})`);
-      } else {
-        const msg = result.message ?? "Unknown error";
-        fail(`Failed to connect: ${msg}`);
-      }
+      const result = await sendConnectRequest(body);
+      handleConnectResult(result, options.name, options.addr);
     });
 }
 
