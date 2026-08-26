@@ -1,37 +1,80 @@
-import { accessSync } from "node:fs";
-import { resolve } from "node:path";
+import { accessSync, readFileSync, statSync } from "node:fs";
+import { basename, resolve } from "node:path";
 
-import { requestAstroBox } from "./api";
+import { pathSegment, requestAstroBox } from "./api";
 import { fail } from "./errors";
 import { renderQueueTable } from "./table";
-import type { AstroBoxInstallResponse, AstroBoxQueueStatusResponse } from "../types/astrobox";
+import type {
+  AstroBoxInstallRequest,
+  AstroBoxInstallResponse,
+  AstroBoxQueueTask,
+  AstroBoxQueueTaskResponse,
+  AstroBoxUploadResponse,
+} from "../types/astrobox";
+
+export type InstallOptions = {
+  resourceType?: string;
+  watchfaceId?: string;
+};
 
 function validateFile(resourcePath: string): string {
   const normalizedPath = resolve(resourcePath);
   try {
     accessSync(normalizedPath);
+    if (!statSync(normalizedPath).isFile()) {
+      fail(`Not a regular file: ${normalizedPath}`);
+    }
   } catch {
     fail(`File does not exist: ${normalizedPath}`);
   }
   return normalizedPath;
 }
 
-async function queueInstall(normalizedPath: string): Promise<string> {
-  const result = await requestAstroBox<AstroBoxInstallResponse>("/queue/install", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      path: normalizedPath,
-    }),
+async function uploadFile(normalizedPath: string): Promise<AstroBoxUploadResponse> {
+  const form = new FormData();
+  const file = new Blob([readFileSync(normalizedPath) as unknown as ArrayBuffer], {
+    type: "application/octet-stream",
   });
+  form.append("file", file, basename(normalizedPath));
 
-  if (!result.ok) {
-    fail(`Installation failed: ${result.message}`);
+  return requestAstroBox<AstroBoxUploadResponse>("/v2/uploads", {
+    method: "POST",
+    body: form,
+  });
+}
+
+async function removeUpload(uploadId: string): Promise<void> {
+  try {
+    await requestAstroBox<void>(`/v2/uploads/${pathSegment(uploadId)}`, {
+      method: "DELETE",
+    });
+  } catch {
+    // The original error is more useful than a best-effort cleanup failure.
   }
+}
 
-  return result.taskId;
+async function queueInstall(
+  deviceId: string,
+  uploadId: string,
+  options: InstallOptions,
+): Promise<AstroBoxInstallResponse> {
+  const body: AstroBoxInstallRequest = {
+    deviceId,
+    uploadId,
+  };
+  if (options.resourceType) body.resourceType = options.resourceType;
+  if (options.watchfaceId) body.watchfaceId = options.watchfaceId;
+
+  try {
+    return await requestAstroBox<AstroBoxInstallResponse>("/v2/queue/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    await removeUpload(uploadId);
+    throw error;
+  }
 }
 
 function clearPreviousOutput(previousOutput: string): void {
@@ -40,93 +83,93 @@ function clearPreviousOutput(previousOutput: string): void {
 }
 
 function cleanupOutput(output: string): void {
-  if (output) {
-    clearPreviousOutput(output);
-  }
+  if (output) clearPreviousOutput(output);
 }
 
-function getQueueErrorMessage(queue: AstroBoxQueueStatusResponse): string | undefined {
-  if (!queue.ok) {
-    return `Queue status check failed: ${(queue as Record<string, unknown>).message ?? "unknown error"}`;
-  }
-  const errorItem = queue.install.items.find((item) => item.status === "error");
-  if (errorItem) {
-    return `Install error: ${errorItem.progressDesc}`;
-  }
-  return undefined;
+function taskErrorMessage(task: AstroBoxQueueTask): string | undefined {
+  if (task.status !== "failed" && task.status !== "canceled") return undefined;
+  return (
+    task.errorDetail ??
+    task.progressDesc ??
+    task.errorCode ??
+    `task ${task.status}`
+  );
 }
 
-function isQueueComplete(queue: AstroBoxQueueStatusResponse): boolean {
-  return queue.install.items.length === 0;
+function isTaskComplete(task: AstroBoxQueueTask): boolean {
+  return task.status === "succeeded";
 }
 
-function renderProgress(
-  queue: AstroBoxQueueStatusResponse,
-  previousOutput: string
-): string {
-  const table = renderQueueTable(queue.install.items);
-  const output = `Install progress: ${queue.install.progress}%\n${table}`;
+function renderProgress(task: AstroBoxQueueTask, previousOutput: string): string {
+  const output = [
+    `Install progress: ${Math.round(task.progress * 100)}%`,
+    `Device: ${task.deviceId}`,
+    renderQueueTable([task]),
+  ].join("\n");
 
-  if (previousOutput) {
-    clearPreviousOutput(previousOutput);
-  }
-
+  if (previousOutput) clearPreviousOutput(previousOutput);
   process.stdout.write(output);
   return output;
 }
 
-async function pollOnce(previousOutput: string): Promise<string | null> {
-  const queue = await requestAstroBox<AstroBoxQueueStatusResponse>("/queue/status", {
-    method: "GET",
-  });
-
-  const errorMsg = getQueueErrorMessage(queue);
-  if (errorMsg) {
+async function pollOnce(taskId: string, previousOutput: string): Promise<string | null> {
+  const task = await requestAstroBox<AstroBoxQueueTaskResponse>(
+    `/v2/queue/tasks/${pathSegment(taskId)}`,
+  );
+  const errorMessage = taskErrorMessage(task);
+  if (errorMessage) {
     cleanupOutput(previousOutput);
-    fail(errorMsg);
+    fail(`Install error: ${errorMessage}`);
   }
 
-  if (isQueueComplete(queue)) {
+  if (isTaskComplete(task)) {
     cleanupOutput(previousOutput);
     console.log("Installation completed successfully.");
     return null;
   }
 
-  return renderProgress(queue, previousOutput);
+  return renderProgress(task, previousOutput);
 }
 
 async function pollUntilComplete(
+  taskId: string,
   timeoutMs: number,
-  pollIntervalMs: number
+  pollIntervalMs: number,
 ): Promise<boolean> {
   const startTime = Date.now();
   let previousOutput = "";
 
   while (Date.now() - startTime < timeoutMs) {
-    const nextOutput = await pollOnce(previousOutput);
-    if (nextOutput === null) {
-      return true;
-    }
+    const nextOutput = await pollOnce(taskId, previousOutput);
+    if (nextOutput === null) return true;
     previousOutput = nextOutput;
-    await new Promise((r) => setTimeout(r, pollIntervalMs));
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, pollIntervalMs));
   }
 
   return false;
 }
 
-export async function installFile(resourcePath: string, wait: boolean): Promise<void> {
+export async function installFile(
+  resourcePath: string,
+  deviceId: string,
+  wait: boolean,
+  options: InstallOptions = {},
+): Promise<void> {
   const normalizedPath = validateFile(resourcePath);
-  const taskId = await queueInstall(normalizedPath);
+  const upload = await uploadFile(normalizedPath);
+  const result = await queueInstall(deviceId, upload.uploadId, options);
+
+  if (!result.taskId) {
+    await removeUpload(upload.uploadId);
+    fail("Installation did not return a task ID");
+  }
 
   if (!wait) {
-    console.log(`Installation queued: ${taskId}`);
+    console.log(`Installation queued: ${result.taskId}`);
     return;
   }
 
   console.log("Waiting for installation to complete...");
-
-  const completed = await pollUntilComplete(10000, 1000);
-  if (!completed) {
-    fail("Installation timed out");
-  }
+  const completed = await pollUntilComplete(result.taskId, 10 * 60 * 1000, 1000);
+  if (!completed) fail("Installation timed out");
 }

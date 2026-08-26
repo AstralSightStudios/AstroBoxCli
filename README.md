@@ -1,6 +1,6 @@
 # AstroBox CLI
 
-A command-line interface for interacting with [AstroBox](https://astrobox.online) — open the app, check status, manage devices, browse providers, and install local resources without leaving your terminal.
+A command-line interface for interacting with [AstroBox](https://astrobox.online) through its authenticated Local API v2 — open the app, check devices, manage queues, browse providers, and install local resources.
 
 ## Installation
 
@@ -16,38 +16,44 @@ npx astrobox-cli <command>
 
 Requires Node.js >= 20.
 
+## Authentication
+
+The first authenticated command creates an Ed25519 client identity in:
+
+```text
+~/.config/astrobox-cli/credentials.json
+```
+
+The CLI prints a pairing request and waits for you to approve it in AstroBox. After approval, it creates a short-lived Bearer session automatically. The private key and session token stay in the credentials file and are not printed.
+
+To use another credentials path, set `ASTROBOX_CLI_CONFIG` before running the CLI. To choose the client name shown by AstroBox, set `ASTROBOX_CLI_CLIENT_NAME`.
+
 ## Usage
 
 ```
 astrobox-cli [options] [command]
 
-Options:
-  -v, --version   display the current version
-  -h, --help      display help for command
-
 Commands:
   open [options]     Launch AstroBox via astrobox:// protocol
   status             Query AstroBox connection status
-  install <path>     Install a local resource file through AstroBox
-  queue              Manage install queue
+  install <path>     Upload and install a local resource
+  queue              Manage install queues
   device             Manage AstroBox devices
   provider           Manage AstroBox providers
-  help [command]     display help for command
 ```
 
 ### `astrobox-cli open`
 
-Opens AstroBox using the `astrobox://` protocol URL.
+Opens AstroBox using the `astrobox://` protocol URL. This is the only command that does not require Local API authentication.
 
 ```bash
 astrobox-cli open
-# or with a custom URL
 astrobox-cli open --url astrobox://workspace
 ```
 
 ### `astrobox-cli status`
 
-Queries the local AstroBox API to check whether it's running and lists connected devices.
+Lists known and currently connected devices through `GET /v2/devices`.
 
 ```bash
 astrobox-cli status
@@ -59,154 +65,105 @@ Example output:
 AstroBox: connected
 Devices: 2
 - Xiaomi Smart Band 9 Pro C692 (3C:AF:B7:ED:C6:92) [connected]
+- Another device (AA:BB:CC:DD:EE:FF) [disconnected]
 ```
 
 ### `astrobox-cli install <path>`
 
-Sends a local file to AstroBox for installation. This is a convenience alias for `astrobox-cli queue install`.
+Uploads a local file and installs it on the selected device. This is a convenience alias for `astrobox-cli queue install`.
 
 ```bash
-astrobox-cli install ./app.rpk
-# or wait for installation to complete and show progress
-astrobox-cli install ./app.rpk --wait
+astrobox-cli install ./app.rpk --device 3C:AF:B7:ED:C6:92
+astrobox-cli install ./app.rpk --device 3C:AF:B7:ED:C6:92 --wait
 ```
 
-With `--wait`, the CLI polls the queue status every second and displays a live progress table. If an error occurs, the error message is shown and the process exits with a non-zero code.
+Options:
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--device <deviceId>` | Yes | Target device ID |
+| `--resourceType <type>` | No | Resource type hint |
+| `--watchfaceId <id>` | No | Watchface ID hint |
+| `--wait` | No | Wait for the task to finish |
+
+The file is sent to `POST /v2/uploads`, then queued with `POST /v2/queue/install` using the returned `uploadId`.
 
 ### `astrobox-cli queue`
 
-Manage the install queue.
+Manage per-device install queues.
 
 ```bash
-# Show current install queue status (tasks, progress, descriptions)
+# Show all install queues
 astrobox-cli queue status
+# Show one device queue
+astrobox-cli queue status --device 3C:AF:B7:ED:C6:92
 
-# Add a file to the install queue
-astrobox-cli queue install ./app.rpk
-# with --wait
-astrobox-cli queue install ./app.rpk --wait
+# Upload and queue a file
+astrobox-cli queue install ./app.rpk --device 3C:AF:B7:ED:C6:92
+astrobox-cli queue install ./app.rpk --device 3C:AF:B7:ED:C6:92 --wait
 
-# Start the install queue processor
-astrobox-cli queue start
+# Start or stop a device queue
+astrobox-cli queue start 3C:AF:B7:ED:C6:92
+astrobox-cli queue stop 3C:AF:B7:ED:C6:92
 
-# Stop the install queue processor
-astrobox-cli queue stop
-
-# Remove a task from the queue
-astrobox-cli queue remove /path/to/app.rpk
-# remove from download queue instead
-astrobox-cli queue remove /path/to/app.rpk --queue download
+# Cancel a task
+astrobox-cli queue remove <taskId>
 ```
 
-`queue status` output example:
-
-```
-Install: running (45%)
-
-Name                 | Type         | Progress   | Status     | Description
----------------------+--------------+------------+------------+---------------------
-Cool Watchface       | watchface    | 45%        | running    | Installing...
-```
-
-If a task enters `error` status while the queue is `pending`, the table is printed followed by an error message and a non-zero exit.
+`queue remove` uses `DELETE /v2/queue/tasks/:taskId`; the old `--queue install|download` option is no longer supported by Local API v2.
 
 ### `astrobox-cli device`
 
 Manage saved devices.
 
 ```bash
-# List all devices
 astrobox-cli device list
+astrobox-cli device show 3C:AF:B7:ED:C6:92
 
-# Show full details for a device (including authkey)
-astrobox-cli device show <addr>
-
-# Connect a new device
 astrobox-cli device connect \
   --name "Xiaomi Smart Band 9 Pro C692" \
   --addr "3C:AF:B7:ED:C6:92" \
   --authkey "your-authkey"
 ```
 
-Optional flags for `connect`:
+Optional `connect` flags:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--sarVersion` | `2` | SAR version |
-| `--txWinOverrunAllowance` | — | TX window overrun allowance |
-| `--connectType` | `SPP` | `SPP` or `BLE` |
+| `--kind <kind>` | — | `xiaomi` or `vivo` |
+| `--sarVersion <version>` | `2` | SAR version |
+| `--txWinOverrunAllowance <allowance>` | — | TX window overrun allowance |
+| `--connectType <type>` | `SPP` | `SPP` or `BLE` |
 
 ### `astrobox-cli provider`
 
 Browse and interact with resource providers.
 
 ```bash
-# List all providers
 astrobox-cli provider list
-
-# Get provider state (Ready / Updating / Failed...)
 astrobox-cli provider state OfficialV2
-
-# Get category list
 astrobox-cli provider categories OfficialV2
-
-# Refresh provider cache
 astrobox-cli provider refresh OfficialV2
 astrobox-cli provider refresh OfficialV2 --cfg "..."
-
-# Get total item count
 astrobox-cli provider total OfficialV2
 
-# Paginated content
 astrobox-cli provider page OfficialV2 --page 1 --limit 10 --category watchface --sort time
-
-# Get item detail
 astrobox-cli provider item OfficialV2 <id>
-
-# Resolve download link
 astrobox-cli provider download OfficialV2 \
   --id <id> \
   --device xmb9p \
   --downloadKey xmb9p
 ```
 
-`page` options:
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--page` | `1` | Page number (1-based) |
-| `--limit` | `20` | Items per page |
-| `--keyword` | — | Search keyword |
-| `--category` | — | Comma-separated categories |
-| `--sort` | `time` | `time` / `name` / `random` |
-
-> Note: AstroBox local API uses 0-based `page`, but CLI `--page` is 1-based for easier use.
-
-`download` options:
-
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--id` | Yes | Resource ID |
-| `--downloadKey` | No | Download entry key |
-| `--device` | No | Device key (required for some OfficialV2 items) |
-| `--trial` | No | Trial download flag |
+The CLI keeps `--page` 1-based while the v2 API uses a 0-based page index. Provider `--device` is sent as v2's `providerDeviceKey`.
 
 ## Development
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Development watch mode
 pnpm dev
-
-# Type check
 pnpm typecheck
-
-# Build for production
 pnpm build
-
-# Run CLI locally
 pnpm cli <command>
 ```
 

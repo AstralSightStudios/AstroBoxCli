@@ -1,32 +1,36 @@
-import type { AstroBoxQueueTaskItem } from "../types/astrobox";
+import type { AstroBoxQueueTask } from "../types/astrobox";
 
-export function renderQueueTable(items: AstroBoxQueueTaskItem[]): string {
+export function renderQueueTable(items: AstroBoxQueueTask[]): string {
   if (items.length === 0) {
     return "";
   }
 
   const columns = [
     { key: "name" as const, header: "Name", width: 20 },
-    { key: "type" as const, header: "Type", width: 12 },
+    { key: "resourceType" as const, header: "Type", width: 12 },
     { key: "progress" as const, header: "Progress", width: 10 },
-    { key: "status" as const, header: "Status", width: 10 },
-    { key: "progressDesc" as const, header: "Description", width: 20 },
+    { key: "status" as const, header: "Status", width: 16 },
+    { key: "progressDesc" as const, header: "Description", width: 24 },
   ];
 
-  const pad = (s: unknown, w: number): string => {
-    const safe = String(s ?? "");
-    const str = safe.length > w ? safe.slice(0, w - 1) + "…" : safe;
-    return str.padEnd(w, " ");
+  const pad = (value: unknown, width: number): string => {
+    const safe = String(value ?? "");
+    const text = safe.length > width ? `${safe.slice(0, width - 1)}…` : safe;
+    return text.padEnd(width, " ");
   };
 
-  const headerLine = columns.map((c) => pad(c.header, c.width)).join(" | ");
-  const separator = columns.map((c) => "-".repeat(c.width)).join("-+-");
-
+  const headerLine = columns.map((column) => pad(column.header, column.width)).join(" | ");
+  const separator = columns.map((column) => "-".repeat(column.width)).join("-+-");
   const rows = items.map((item) =>
-    columns.map((c) => {
-      const value = c.key === "progress" ? `${item[c.key]}%` : item[c.key];
-      return pad(value, c.width);
-    }).join(" | ")
+    columns
+      .map((column) => {
+        const value =
+          column.key === "progress"
+            ? `${Math.round(item.progress * 100)}%`
+            : item[column.key];
+        return pad(value, column.width);
+      })
+      .join(" | "),
   );
 
   return [headerLine, separator, ...rows].join("\n");

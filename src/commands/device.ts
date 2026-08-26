@@ -1,29 +1,29 @@
 import { Command } from "commander";
 
-import { requestAstroBox } from "../lib/api";
+import { pathSegment, requestAstroBox } from "../lib/api";
 import { fail } from "../lib/errors";
 import type {
   AstroBoxConnectRequest,
   AstroBoxConnectResponse,
-  AstroBoxDeviceDetail,
+  AstroBoxDevice,
   AstroBoxDeviceListResponse,
 } from "../types/astrobox";
 
-function formatDeviceDetail(device: AstroBoxDeviceDetail): string {
-  const status = device.connected ? "connected" : "disconnected";
-  return `- ${device.name} (${device.addr}) [${status}]`;
+function formatDeviceDetail(device: AstroBoxDevice): string {
+  return `- ${device.name} (${device.deviceId}) [${device.connectionState}]`;
 }
 
-function renderDeviceFull(device: AstroBoxDeviceDetail): string {
+function renderDeviceFull(device: AstroBoxDevice): string {
   const lines = [
-    `Name:     ${device.name}`,
-    `Address:  ${device.addr}`,
-    `AuthKey:  ${device.authkey}`,
-    `Status:   ${device.connected ? "connected" : "disconnected"}`,
-    `SAR Ver:  ${device.sarVersion}`,
-    `TX Win:   ${device.txWinOverrunAllowance}`,
-    `Type:     ${device.connectType}`,
+    `Name:      ${device.name}`,
+    `Device ID: ${device.deviceId}`,
+    `Kind:      ${device.kind}`,
+    `Known:     ${device.known ? "yes" : "no"}`,
+    `Status:    ${device.connectionState}`,
+    `AuthKey:   ${device.authkey ?? "-"}`,
+    `Type:      ${device.connectType ?? "-"}`,
   ];
+  if (device.lastError) lines.push(`Error:     ${device.lastError}`);
   return lines.join("\n");
 }
 
@@ -31,33 +31,24 @@ function createListCommand(): Command {
   return new Command("list")
     .description("List saved devices and their connection status")
     .action(async () => {
-      const result = await requestAstroBox<AstroBoxDeviceListResponse>("/device/list");
-
-      const lines = [
-        `Devices: ${result.device_count}`,
-      ];
-
+      const result = await requestAstroBox<AstroBoxDeviceListResponse>("/v2/devices");
+      const lines = [`Devices: ${result.devices.length}`];
       if (result.devices.length > 0) {
         lines.push(...result.devices.map(formatDeviceDetail));
       }
-
       console.log(lines.join("\n"));
     });
 }
 
 function createShowCommand(): Command {
   return new Command("show")
-    .description("Show full details for a device by address")
-    .argument("<addr>", "device MAC address")
-    .action(async (addr: string) => {
-      const result = await requestAstroBox<AstroBoxDeviceListResponse>("/device/list");
-      const device = result.devices.find((d) => d.addr === addr);
-
-      if (!device) {
-        fail(`Device not found: ${addr}`);
-      }
-
-      console.log(renderDeviceFull(device));
+    .description("Show full details for a device by device ID")
+    .argument("<deviceId>", "device ID, usually a device MAC address")
+    .action(async (deviceId: string) => {
+      const result = await requestAstroBox<AstroBoxDevice>(
+        `/v2/devices/${pathSegment(deviceId)}`,
+      );
+      console.log(renderDeviceFull(result));
     });
 }
 
@@ -65,9 +56,18 @@ interface ConnectOptions {
   name: string;
   addr: string;
   authkey: string;
+  kind?: string;
   sarVersion: string;
   txWinOverrunAllowance?: string;
   connectType: string;
+}
+
+function parseNumber(value: string, optionName: string): number {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 0) {
+    fail(`${optionName} must be a non-negative integer`);
+  }
+  return number;
 }
 
 function buildConnectBody(options: ConnectOptions): AstroBoxConnectRequest {
@@ -75,12 +75,23 @@ function buildConnectBody(options: ConnectOptions): AstroBoxConnectRequest {
     name: options.name,
     addr: options.addr,
     authkey: options.authkey,
-    sarVersion: Number(options.sarVersion),
+    sarVersion: parseNumber(options.sarVersion, "--sarVersion"),
     connectType: options.connectType as "SPP" | "BLE",
   };
 
+  if (options.kind !== undefined) {
+    const kind = options.kind.toLowerCase();
+    if (kind !== "xiaomi" && kind !== "vivo") {
+      fail(`Invalid kind: ${options.kind}. Must be "xiaomi" or "vivo".`);
+    }
+    body.kind = kind;
+  }
+
   if (options.txWinOverrunAllowance !== undefined) {
-    body.txWinOverrunAllowance = Number(options.txWinOverrunAllowance);
+    body.txWinOverrunAllowance = parseNumber(
+      options.txWinOverrunAllowance,
+      "--txWinOverrunAllowance",
+    );
   }
 
   if (body.connectType !== "SPP" && body.connectType !== "BLE") {
@@ -90,23 +101,14 @@ function buildConnectBody(options: ConnectOptions): AstroBoxConnectRequest {
   return body;
 }
 
-async function sendConnectRequest(body: AstroBoxConnectRequest): Promise<AstroBoxConnectResponse> {
-  return requestAstroBox<AstroBoxConnectResponse>("/device/connect", {
+async function sendConnectRequest(
+  body: AstroBoxConnectRequest,
+): Promise<AstroBoxConnectResponse> {
+  return requestAstroBox<AstroBoxConnectResponse>("/v2/devices/connect", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-}
-
-function handleConnectResult(result: AstroBoxConnectResponse, name: string, addr: string): void {
-  if (result.ok) {
-    console.log(`Connected to ${name} (${addr})`);
-  } else {
-    const msg = result.message ?? "Unknown error";
-    fail(`Failed to connect: ${msg}`);
-  }
 }
 
 function createConnectCommand(): Command {
@@ -115,24 +117,22 @@ function createConnectCommand(): Command {
     .requiredOption("--name <name>", "device name")
     .requiredOption("--addr <addr>", "device MAC address")
     .requiredOption("--authkey <authkey>", "device auth key")
+    .option("--kind <kind>", "device kind (xiaomi or vivo)")
     .option("--sarVersion <version>", "SAR version", "2")
     .option("--txWinOverrunAllowance <allowance>", "TX window overrun allowance")
     .option("--connectType <type>", "connection type (SPP or BLE)", "SPP")
     .action(async (options: ConnectOptions) => {
       const body = buildConnectBody(options);
-
       console.log("Connecting...");
       const result = await sendConnectRequest(body);
-      handleConnectResult(result, options.name, options.addr);
+      console.log(`Connected to ${body.name} (${result.deviceId})`);
     });
 }
 
 export function createDeviceCommand(): Command {
-  const command = new Command("device")
+  return new Command("device")
     .description("Manage AstroBox devices")
     .addCommand(createListCommand())
     .addCommand(createShowCommand())
     .addCommand(createConnectCommand());
-
-  return command;
 }

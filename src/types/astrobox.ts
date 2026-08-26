@@ -1,92 +1,121 @@
-export type AstroBoxDevice = {
-  name: string;
-  addr: string;
+export type AstroBoxErrorResponse = {
+  error: {
+    code: string;
+    message: string;
+    retryable: boolean;
+    details: Record<string, unknown>;
+  };
 };
 
-export type AstroBoxStatusResponse = {
-  ok: boolean;
-  connected: boolean;
-  device_count: number;
+export type AstroBoxDevice = {
+  deviceId: string;
+  name: string;
+  kind: string;
+  known: boolean;
+  connectionState: string;
+  connectType?: string;
+  authkey?: string;
+  lastError?: string;
+};
+
+export type AstroBoxDevicesResponse = {
   devices: AstroBoxDevice[];
 };
 
-export type AstroBoxInstallResponse = {
-  ok: boolean;
-  message: string;
-  taskId: string | null;
-};
-
-export type AstroBoxQueueTaskItem = {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  icon: string;
-  progress: number;
-  status: string;
-  fileSize: string;
-  progressDesc: string;
-  watchfaceId: string | null;
-  canModifyId: boolean;
-};
-
-export type AstroBoxQueueListStatus = {
-  status: string;
-  progress: number;
-  items: AstroBoxQueueTaskItem[];
-};
-
-export type AstroBoxQueueStatusResponse = {
-  ok: boolean;
-  download: AstroBoxQueueListStatus;
-  install: AstroBoxQueueListStatus;
-};
-
-export type AstroBoxDeviceDetail = {
-  name: string;
-  addr: string;
-  authkey: string;
-  connected: boolean;
-  sarVersion: number;
-  txWinOverrunAllowance: number;
-  connectType: string;
-};
-
-export type AstroBoxDeviceListResponse = {
-  ok: boolean;
-  device_count: number;
-  devices: AstroBoxDeviceDetail[];
-};
+export type AstroBoxStatusResponse = AstroBoxDevicesResponse;
+export type AstroBoxDeviceListResponse = AstroBoxDevicesResponse;
+export type AstroBoxDeviceDetail = AstroBoxDevice;
 
 export type AstroBoxConnectRequest = {
   name: string;
   addr: string;
-  authkey: string;
+  kind?: "xiaomi" | "vivo";
+  authkey?: string;
   sarVersion?: number;
   txWinOverrunAllowance?: number;
   connectType?: "SPP" | "BLE";
 };
 
 export type AstroBoxConnectResponse = {
+  deviceId: string;
+  connectionState: string;
+};
+
+export type AstroBoxUploadResponse = {
+  uploadId: string;
+  fileName: string;
+  size: number;
+  sha256: string;
+  state: string;
+  expiresAt: string;
+};
+
+export type AstroBoxInstallRequest = {
+  deviceId: string;
+  uploadId: string;
+  resourceType?: string;
+  watchfaceId?: string;
+};
+
+export type AstroBoxTaskResponse = {
+  taskId: string;
+  deviceId: string;
+  status: string;
+  groupId?: string;
+};
+
+export type AstroBoxInstallResponse = AstroBoxTaskResponse;
+
+export type AstroBoxQueueTask = {
+  taskId: string;
+  deviceId: string;
+  groupId?: string;
+  requestId?: string;
+  name: string;
+  status: string;
+  progress: number;
+  progressDesc?: string;
+  errorCode?: string;
+  errorDetail?: string;
+  resultUnknown: boolean;
+  attempt: number;
+  retryDeadline?: string;
+  resourceType?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  canCancelRunning: boolean;
+  fileSizeBytes?: number;
+};
+
+export type AstroBoxDeviceQueue = {
+  deviceId: string;
+  status: string;
+  progress: number;
+  items: AstroBoxQueueTask[];
+};
+
+export type AstroBoxQueueStatusResponse = {
+  devices: AstroBoxDeviceQueue[];
+};
+
+export type AstroBoxQueueControlResponse = {
   ok: boolean;
   message?: string;
   [key: string]: unknown;
 };
 
+export type AstroBoxQueueTaskResponse = AstroBoxQueueTask;
+
 export type AstroBoxProviderListResponse = {
-  ok: boolean;
   providers: string[];
 };
 
 export type AstroBoxProviderStateResponse = {
-  ok: boolean;
-  name: string;
+  providerId: string;
   state: string;
 };
 
 export type AstroBoxProviderCategoriesResponse = {
-  ok: boolean;
-  name: string;
   categories: string[];
 };
 
@@ -106,8 +135,6 @@ export type AstroBoxProviderPageItem = {
 };
 
 export type AstroBoxProviderPageResponse = {
-  ok: boolean;
-  name: string;
   page: number;
   limit: number;
   items: AstroBoxProviderPageItem[];
@@ -129,49 +156,24 @@ export type AstroBoxProviderItemDownload = {
   updatelogs: string | null;
 };
 
+export type AstroBoxProviderManifest = {
+  item: AstroBoxProviderPageItem;
+  links: AstroBoxProviderItemLink[];
+  downloads: Record<string, AstroBoxProviderItemDownload>;
+  ext: Record<string, unknown>;
+};
+
 export type AstroBoxProviderItemResponse = {
-  ok: boolean;
-  name: string;
-  item: {
-    item: AstroBoxProviderPageItem;
-    links: AstroBoxProviderItemLink[];
-    downloads: Record<string, AstroBoxProviderItemDownload>;
-    ext: Record<string, unknown>;
-  };
+  item: AstroBoxProviderManifest;
 };
 
 export type AstroBoxProviderDownloadResponse = {
-  ok: boolean;
-  name: string;
-  id: string;
-  downloadKey: string;
-  device?: string;
+  downloadKey?: string;
+  providerDeviceKey?: string;
   trial: boolean;
   download: AstroBoxProviderItemDownload;
 };
 
 export type AstroBoxProviderTotalResponse = {
-  ok: boolean;
-  name: string;
   total: number;
-};
-
-export type AstroBoxQueueStartResponse = {
-  ok: boolean;
-  message: string;
-};
-
-export type AstroBoxQueueStopResponse = {
-  ok: boolean;
-  message: string;
-};
-
-export type AstroBoxQueueRemoveRequest = {
-  taskId: string;
-  queue: "install" | "download";
-};
-
-export type AstroBoxQueueRemoveResponse = {
-  ok: boolean;
-  message: string;
 };
