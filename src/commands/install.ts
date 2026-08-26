@@ -6,14 +6,14 @@ export function createInstallCommand(): Command {
   return new Command("install")
     .description("Upload and install a local resource")
     .argument("<path>", "path to the local resource file, resolved from the current working directory")
-    .requiredOption("--device <deviceId>", "target device ID")
+    .option("--device <deviceId>", "target device ID; auto-selected when exactly one device is connected")
     .option("--resourceType <type>", "resource type")
     .option("--watchfaceId <id>", "watchface ID")
     .option("--wait", "wait for installation to complete and show progress")
     .action(async (
       resourcePath: string,
       options: {
-        device: string;
+        device?: string;
         resourceType?: string;
         watchfaceId?: string;
         wait?: boolean;

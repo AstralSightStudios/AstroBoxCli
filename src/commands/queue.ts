@@ -2,25 +2,27 @@ import { Command } from "commander";
 
 import { installFile } from "../lib/install";
 import { pathSegment, requestAstroBox } from "../lib/api";
+import { selectDevice } from "../lib/device";
 import { fail } from "../lib/errors";
 import { renderQueueTable } from "../lib/table";
 import type {
   AstroBoxQueueControlResponse,
   AstroBoxQueueStatusResponse,
+  AstroBoxQueueTaskResponse,
 } from "../types/astrobox";
 
 function createInstallSubCommand(): Command {
   return new Command("install")
     .description("Upload a file and add it to a device's install queue")
     .argument("<path>", "path to the local resource file")
-    .requiredOption("--device <deviceId>", "target device ID")
+    .option("--device <deviceId>", "target device ID; auto-selected when exactly one device is connected")
     .option("--resourceType <type>", "resource type")
     .option("--watchfaceId <id>", "watchface ID")
     .option("--wait", "wait for installation to complete and show progress")
     .action(async (
       resourcePath: string,
       options: {
-        device: string;
+        device?: string;
         resourceType?: string;
         watchfaceId?: string;
         wait?: boolean;
@@ -83,8 +85,10 @@ async function changeQueueState(deviceId: string, action: "start" | "stop"): Pro
 function createStartCommand(): Command {
   return new Command("start")
     .description("Start a device's install queue")
-    .argument("<deviceId>", "target device ID")
-    .action(async (deviceId: string) => {
+    .argument("[deviceId]", "target device ID")
+    .option("--device <deviceId>", "target device ID; auto-selected when exactly one device is connected")
+    .action(async (positionalDeviceId: string | undefined, options: { device?: string }) => {
+      const deviceId = await selectDevice(positionalDeviceId, options);
       await changeQueueState(deviceId, "start");
     });
 }
@@ -92,9 +96,33 @@ function createStartCommand(): Command {
 function createStopCommand(): Command {
   return new Command("stop")
     .description("Stop a device's install queue")
-    .argument("<deviceId>", "target device ID")
-    .action(async (deviceId: string) => {
+    .argument("[deviceId]", "target device ID")
+    .option("--device <deviceId>", "target device ID; auto-selected when exactly one device is connected")
+    .action(async (positionalDeviceId: string | undefined, options: { device?: string }) => {
+      const deviceId = await selectDevice(positionalDeviceId, options);
       await changeQueueState(deviceId, "stop");
+    });
+}
+
+function createTaskCommand(): Command {
+  return new Command("task")
+    .description("Show an install task by task ID")
+    .argument("<taskId>", "task ID to query")
+    .action(async (taskId: string) => {
+      const task = await requestAstroBox<AstroBoxQueueTaskResponse>(
+        `/v2/queue/tasks/${pathSegment(taskId)}`,
+      );
+      const lines = [
+        `Task:     ${task.taskId}`,
+        `Device:   ${task.deviceId}`,
+        `Status:   ${task.status}`,
+        `Progress: ${Math.round(task.progress * 100)}%`,
+        renderQueueTable([task]),
+      ];
+      if (task.progressDesc) lines.push(`Description: ${task.progressDesc}`);
+      if (task.errorCode) lines.push(`Error code: ${task.errorCode}`);
+      if (task.errorDetail) lines.push(`Error:      ${task.errorDetail}`);
+      console.log(lines.join("\n"));
     });
 }
 
@@ -117,6 +145,7 @@ export function createQueueCommand(): Command {
     .addCommand(createStatusCommand())
     .addCommand(createStartCommand())
     .addCommand(createStopCommand())
+    .addCommand(createTaskCommand())
     .addCommand(createRemoveCommand())
     .addCommand(createInstallSubCommand());
 }

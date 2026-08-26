@@ -38,7 +38,7 @@ Commands:
   status             Query AstroBox connection status
   install <path>     Upload and install a local resource
   queue              Manage install queues
-  device             Manage AstroBox devices
+  device             Manage devices and installed resources
   provider           Manage AstroBox providers
 ```
 
@@ -73,7 +73,7 @@ Devices: 2
 Uploads a local file and installs it on the selected device. This is a convenience alias for `astrobox-cli queue install`.
 
 ```bash
-astrobox-cli install ./app.rpk --device 3C:AF:B7:ED:C6:92
+astrobox-cli install ./app.rpk
 astrobox-cli install ./app.rpk --device 3C:AF:B7:ED:C6:92 --wait
 ```
 
@@ -81,7 +81,7 @@ Options:
 
 | Flag | Required | Description |
 |------|----------|-------------|
-| `--device <deviceId>` | Yes | Target device ID |
+| `--device <deviceId>` | No | Target device ID; automatically selected when exactly one device is connected |
 | `--resourceType <type>` | No | Resource type hint |
 | `--watchfaceId <id>` | No | Watchface ID hint |
 | `--wait` | No | Wait for the task to finish |
@@ -98,33 +98,55 @@ astrobox-cli queue status
 # Show one device queue
 astrobox-cli queue status --device 3C:AF:B7:ED:C6:92
 
-# Upload and queue a file
-astrobox-cli queue install ./app.rpk --device 3C:AF:B7:ED:C6:92
+# Upload and queue a file; omit the device when exactly one is connected
+astrobox-cli queue install ./app.rpk
 astrobox-cli queue install ./app.rpk --device 3C:AF:B7:ED:C6:92 --wait
 
-# Start or stop a device queue
-astrobox-cli queue start 3C:AF:B7:ED:C6:92
-astrobox-cli queue stop 3C:AF:B7:ED:C6:92
+# Start or stop a device queue; omit the device when exactly one is connected
+astrobox-cli queue start
+astrobox-cli queue stop --device 3C:AF:B7:ED:C6:92
 
-# Cancel a task
+# Query or cancel a task
+astrobox-cli queue task <taskId>
 astrobox-cli queue remove <taskId>
 ```
 
 `queue remove` uses `DELETE /v2/queue/tasks/:taskId`; the old `--queue install|download` option is no longer supported by Local API v2.
 
+For commands that operate on one device, `--device` is optional. If exactly one device is connected, it is selected automatically. If none or multiple devices are connected, the CLI reports the problem; with multiple devices, use `--device <deviceId>`. The old positional device argument for `queue start` and `queue stop` remains supported.
+
 ### `astrobox-cli device`
 
-Manage saved devices.
+Manage devices and resources installed on them. Commands that target a device can omit `--device` when exactly one device is connected.
 
 ```bash
 astrobox-cli device list
-astrobox-cli device show 3C:AF:B7:ED:C6:92
+astrobox-cli device show
+astrobox-cli device show --device 3C:AF:B7:ED:C6:92
+astrobox-cli device disconnect
+astrobox-cli device data --type status
 
 astrobox-cli device connect \
   --name "Xiaomi Smart Band 9 Pro C692" \
   --addr "3C:AF:B7:ED:C6:92" \
   --authkey "your-authkey"
 ```
+
+Device data types are `info`, `status`, and `storage`; output is formatted JSON.
+
+#### Watchfaces and Quick Apps
+
+```bash
+astrobox-cli device watchface list
+astrobox-cli device watchface current <watchfaceId>
+astrobox-cli device watchface remove <watchfaceId> --device 3C:AF:B7:ED:C6:92
+
+astrobox-cli device app list
+astrobox-cli device app open <packageName> --page home
+astrobox-cli device app remove <packageName>
+```
+
+`device app` is also available as `device quick-app`.
 
 Optional `connect` flags:
 

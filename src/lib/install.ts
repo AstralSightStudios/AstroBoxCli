@@ -2,6 +2,7 @@ import { accessSync, readFileSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 
 import { pathSegment, requestAstroBox } from "./api";
+import { resolveDeviceId } from "./device";
 import { fail } from "./errors";
 import { renderQueueTable } from "./table";
 import type {
@@ -151,13 +152,14 @@ async function pollUntilComplete(
 
 export async function installFile(
   resourcePath: string,
-  deviceId: string,
+  deviceId: string | undefined,
   wait: boolean,
   options: InstallOptions = {},
 ): Promise<void> {
+  const targetDeviceId = await resolveDeviceId(deviceId);
   const normalizedPath = validateFile(resourcePath);
   const upload = await uploadFile(normalizedPath);
-  const result = await queueInstall(deviceId, upload.uploadId, options);
+  const result = await queueInstall(targetDeviceId, upload.uploadId, options);
 
   if (!result.taskId) {
     await removeUpload(upload.uploadId);

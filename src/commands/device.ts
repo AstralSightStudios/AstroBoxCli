@@ -2,11 +2,14 @@ import { Command } from "commander";
 
 import { pathSegment, requestAstroBox } from "../lib/api";
 import { fail } from "../lib/errors";
+import { jsonOutput, selectDevice } from "../lib/device";
 import type {
   AstroBoxConnectRequest,
   AstroBoxConnectResponse,
   AstroBoxDevice,
+  AstroBoxDeviceData,
   AstroBoxDeviceListResponse,
+  AstroBoxResourceListResponse,
 } from "../types/astrobox";
 
 function formatDeviceDetail(device: AstroBoxDevice): string {
@@ -42,14 +45,170 @@ function createListCommand(): Command {
 
 function createShowCommand(): Command {
   return new Command("show")
-    .description("Show full details for a device by device ID")
-    .argument("<deviceId>", "device ID, usually a device MAC address")
-    .action(async (deviceId: string) => {
+    .description("Show full details for a device")
+    .argument("[deviceId]", "device ID, usually a device MAC address")
+    .option("--device <deviceId>", "target device ID")
+    .action(async (positionalDeviceId: string | undefined, options: { device?: string }) => {
+      const deviceId = await selectDevice(positionalDeviceId, options);
       const result = await requestAstroBox<AstroBoxDevice>(
         `/v2/devices/${pathSegment(deviceId)}`,
       );
       console.log(renderDeviceFull(result));
     });
+}
+
+function createDisconnectCommand(): Command {
+  return new Command("disconnect")
+    .description("Disconnect a device")
+    .argument("[deviceId]", "device ID, usually a device MAC address")
+    .option("--device <deviceId>", "target device ID")
+    .action(async (positionalDeviceId: string | undefined, options: { device?: string }) => {
+      const deviceId = await selectDevice(positionalDeviceId, options);
+      await requestAstroBox<void>(
+        `/v2/devices/${pathSegment(deviceId)}/connection`,
+        { method: "DELETE" },
+      );
+      console.log(`Disconnected ${deviceId}`);
+    });
+}
+
+interface DataOptions {
+  device?: string;
+  type: string;
+}
+
+function createDataCommand(): Command {
+  return new Command("data")
+    .description("Get device data")
+    .argument("[deviceId]", "device ID, usually a device MAC address")
+    .option("--device <deviceId>", "target device ID")
+    .option("--type <type>", "data type: info, status, or storage", "info")
+    .action(async (positionalDeviceId: string | undefined, options: DataOptions) => {
+      if (options.type !== "info" && options.type !== "status" && options.type !== "storage") {
+        fail(`Invalid data type: ${options.type}. Must be info, status, or storage.`);
+      }
+      const deviceId = await selectDevice(positionalDeviceId, options);
+      const params = new URLSearchParams({ type: options.type });
+      const result = await requestAstroBox<AstroBoxDeviceData>(
+        `/v2/devices/${pathSegment(deviceId)}/data?${params.toString()}`,
+      );
+      console.log(jsonOutput(result));
+    });
+}
+
+function createWatchfaceListCommand(): Command {
+  return new Command("list")
+    .description("List watchfaces installed on a device")
+    .option("--device <deviceId>", "target device ID")
+    .action(async (options: { device?: string }) => {
+      const deviceId = await selectDevice(undefined, options);
+      const result = await requestAstroBox<AstroBoxResourceListResponse>(
+        `/v2/devices/${pathSegment(deviceId)}/watchfaces`,
+      );
+      console.log(jsonOutput(result.items));
+    });
+}
+
+function createWatchfaceCurrentCommand(): Command {
+  return new Command("current")
+    .description("Set the current watchface on a device")
+    .argument("<watchfaceId>", "watchface ID")
+    .option("--device <deviceId>", "target device ID")
+    .action(async (watchfaceId: string, options: { device?: string }) => {
+      const deviceId = await selectDevice(undefined, options);
+      await requestAstroBox<void>(
+        `/v2/devices/${pathSegment(deviceId)}/watchfaces/current`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ watchfaceId }),
+        },
+      );
+      console.log(`Watchface ${watchfaceId} is now current on ${deviceId}`);
+    });
+}
+
+function createWatchfaceRemoveCommand(): Command {
+  return new Command("remove")
+    .description("Remove a watchface from a device")
+    .argument("<watchfaceId>", "watchface ID")
+    .option("--device <deviceId>", "target device ID")
+    .action(async (watchfaceId: string, options: { device?: string }) => {
+      const deviceId = await selectDevice(undefined, options);
+      await requestAstroBox<void>(
+        `/v2/devices/${pathSegment(deviceId)}/watchfaces/${pathSegment(watchfaceId)}`,
+        { method: "DELETE" },
+      );
+      console.log(`Watchface ${watchfaceId} removed from ${deviceId}`);
+    });
+}
+
+function createWatchfaceCommand(): Command {
+  return new Command("watchface")
+    .description("Manage watchfaces installed on a device")
+    .addCommand(createWatchfaceListCommand())
+    .addCommand(createWatchfaceCurrentCommand())
+    .addCommand(createWatchfaceRemoveCommand());
+}
+
+function createAppListCommand(): Command {
+  return new Command("list")
+    .description("List quick apps installed on a device")
+    .option("--device <deviceId>", "target device ID")
+    .action(async (options: { device?: string }) => {
+      const deviceId = await selectDevice(undefined, options);
+      const result = await requestAstroBox<AstroBoxResourceListResponse>(
+        `/v2/devices/${pathSegment(deviceId)}/quick-apps`,
+      );
+      console.log(jsonOutput(result.items));
+    });
+}
+
+function createAppOpenCommand(): Command {
+  return new Command("open")
+    .description("Open a quick app on a device")
+    .argument("<packageName>", "quick app package name")
+    .option("--device <deviceId>", "target device ID")
+    .option("--page <page>", "page to open")
+    .action(async (
+      packageName: string,
+      options: { device?: string; page?: string },
+    ) => {
+      const deviceId = await selectDevice(undefined, options);
+      await requestAstroBox<void>(
+        `/v2/devices/${pathSegment(deviceId)}/quick-apps/${pathSegment(packageName)}/open`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ page: options.page ?? "" }),
+        },
+      );
+      console.log(`Opened ${packageName} on ${deviceId}`);
+    });
+}
+
+function createAppRemoveCommand(): Command {
+  return new Command("remove")
+    .description("Remove a quick app from a device")
+    .argument("<packageName>", "quick app package name")
+    .option("--device <deviceId>", "target device ID")
+    .action(async (packageName: string, options: { device?: string }) => {
+      const deviceId = await selectDevice(undefined, options);
+      await requestAstroBox<void>(
+        `/v2/devices/${pathSegment(deviceId)}/quick-apps/${pathSegment(packageName)}`,
+        { method: "DELETE" },
+      );
+      console.log(`Quick app ${packageName} removed from ${deviceId}`);
+    });
+}
+
+function createAppCommand(): Command {
+  return new Command("app")
+    .alias("quick-app")
+    .description("Manage quick apps installed on a device")
+    .addCommand(createAppListCommand())
+    .addCommand(createAppOpenCommand())
+    .addCommand(createAppRemoveCommand());
 }
 
 interface ConnectOptions {
@@ -131,8 +290,12 @@ function createConnectCommand(): Command {
 
 export function createDeviceCommand(): Command {
   return new Command("device")
-    .description("Manage AstroBox devices")
+    .description("Manage devices and installed resources")
     .addCommand(createListCommand())
     .addCommand(createShowCommand())
-    .addCommand(createConnectCommand());
+    .addCommand(createConnectCommand())
+    .addCommand(createDisconnectCommand())
+    .addCommand(createDataCommand())
+    .addCommand(createWatchfaceCommand())
+    .addCommand(createAppCommand());
 }

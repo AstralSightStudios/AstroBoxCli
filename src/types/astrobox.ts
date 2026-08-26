@@ -25,6 +25,11 @@ export type AstroBoxDevicesResponse = {
 export type AstroBoxStatusResponse = AstroBoxDevicesResponse;
 export type AstroBoxDeviceListResponse = AstroBoxDevicesResponse;
 export type AstroBoxDeviceDetail = AstroBoxDevice;
+export type AstroBoxDeviceData = unknown;
+
+export type AstroBoxResourceListResponse = {
+  items: unknown;
+};
 
 export type AstroBoxConnectRequest = {
   name: string;
