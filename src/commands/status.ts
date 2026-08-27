@@ -1,6 +1,7 @@
 import { Command } from "commander";
 
-import { requestAstroBox } from "../lib/api";
+import { requestAstroBoxCompatible } from "../lib/api";
+import { normalizeLegacyStatus, type LegacyStatusResponse } from "../lib/compat";
 import type { AstroBoxDevice, AstroBoxStatusResponse } from "../types/astrobox";
 
 function formatDevice(device: AstroBoxDevice): string {
@@ -9,7 +10,7 @@ function formatDevice(device: AstroBoxDevice): string {
 
 function renderStatus(status: AstroBoxStatusResponse): string {
   const lines = [
-    "AstroBox: connected",
+    `AstroBox: ${status.astroBoxConnected === false ? "unavailable" : "connected"}`,
     `Devices: ${status.devices.length}`,
   ];
 
@@ -24,7 +25,12 @@ export function createStatusCommand(): Command {
   return new Command("status")
     .description("Query AstroBox connection status")
     .action(async () => {
-      const status = await requestAstroBox<AstroBoxStatusResponse>("/v2/devices");
+      const status = await requestAstroBoxCompatible<AstroBoxStatusResponse, LegacyStatusResponse>(
+        "/v2/devices",
+        "/status",
+        undefined,
+        normalizeLegacyStatus,
+      );
       console.log(renderStatus(status));
     });
 }

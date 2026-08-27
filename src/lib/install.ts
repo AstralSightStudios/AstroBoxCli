@@ -1,7 +1,18 @@
 import { accessSync, readFileSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
 
-import { pathSegment, requestAstroBox } from "./api";
+import {
+  getAstroBoxApiVersion,
+  pathSegment,
+  requestAstroBox,
+  requestAstroBoxPublic,
+} from "./api";
+import {
+  normalizeLegacyInstall,
+  normalizeLegacyQueueStatus,
+  type LegacyInstallResponse,
+  type LegacyQueueStatusResponse,
+} from "./compat";
 import { resolveDeviceId } from "./device";
 import { fail } from "./errors";
 import { renderQueueTable } from "./table";
@@ -150,14 +161,92 @@ async function pollUntilComplete(
   return false;
 }
 
+async function queueInstallLegacy(normalizedPath: string): Promise<string> {
+  const response = await requestAstroBoxPublic<LegacyInstallResponse>("/queue/install", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: normalizedPath }),
+  });
+  return normalizeLegacyInstall(response).taskId;
+}
+
+async function pollLegacyOnce(taskId: string, previousOutput: string): Promise<string | null> {
+  const response = await requestAstroBoxPublic<LegacyQueueStatusResponse>("/queue/status");
+  const queue = normalizeLegacyQueueStatus(response);
+  const task = queue.devices
+    .flatMap((deviceQueue) => deviceQueue.items)
+    .find((item) => item.taskId === taskId);
+
+  if (!task || task.status === "succeeded") {
+    cleanupOutput(previousOutput);
+    console.log("Installation completed successfully.");
+    return null;
+  }
+
+  const errorMessage = taskErrorMessage(task);
+  if (errorMessage) {
+    cleanupOutput(previousOutput);
+    fail(`Install error: ${errorMessage}`);
+  }
+
+  return renderProgress(task, previousOutput);
+}
+
+async function pollLegacyUntilComplete(
+  taskId: string,
+  timeoutMs: number,
+  pollIntervalMs: number,
+): Promise<boolean> {
+  const startTime = Date.now();
+  let previousOutput = "";
+
+  while (Date.now() - startTime < timeoutMs) {
+    const nextOutput = await pollLegacyOnce(taskId, previousOutput);
+    if (nextOutput === null) return true;
+    previousOutput = nextOutput;
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, pollIntervalMs));
+  }
+
+  return false;
+}
+
+async function installFileLegacy(
+  normalizedPath: string,
+  deviceId: string | undefined,
+  wait: boolean,
+  options: InstallOptions,
+): Promise<void> {
+  if (deviceId) {
+    fail("The legacy AstroBox API does not support selecting an install device.");
+  }
+  if (options.resourceType || options.watchfaceId) {
+    fail("The legacy AstroBox API does not support resource install options.");
+  }
+
+  const taskId = await queueInstallLegacy(normalizedPath);
+  if (!wait) {
+    console.log(`Installation queued: ${taskId}`);
+    return;
+  }
+
+  console.log("Waiting for installation to complete...");
+  const completed = await pollLegacyUntilComplete(taskId, 10 * 60 * 1000, 1000);
+  if (!completed) fail("Installation timed out");
+}
+
 export async function installFile(
   resourcePath: string,
   deviceId: string | undefined,
   wait: boolean,
   options: InstallOptions = {},
 ): Promise<void> {
-  const targetDeviceId = await resolveDeviceId(deviceId);
   const normalizedPath = validateFile(resourcePath);
+  if ((await getAstroBoxApiVersion()) === "legacy") {
+    await installFileLegacy(normalizedPath, deviceId, wait, options);
+    return;
+  }
+
+  const targetDeviceId = await resolveDeviceId(deviceId);
   const upload = await uploadFile(normalizedPath);
   const result = await queueInstall(targetDeviceId, upload.uploadId, options);
 

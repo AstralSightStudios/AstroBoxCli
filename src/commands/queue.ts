@@ -1,7 +1,14 @@
 import { Command } from "commander";
 
 import { installFile } from "../lib/install";
-import { pathSegment, requestAstroBox } from "../lib/api";
+import { getAstroBoxApiVersion, pathSegment, requestAstroBoxCompatible } from "../lib/api";
+import {
+  normalizeLegacyControl,
+  normalizeLegacyQueueStatus,
+  normalizeLegacyTask,
+  type LegacyOkResponse,
+  type LegacyQueueStatusResponse,
+} from "../lib/compat";
 import { selectDevice } from "../lib/device";
 import { fail } from "../lib/errors";
 import { renderQueueTable } from "../lib/table";
@@ -43,8 +50,11 @@ function createStatusCommand(): Command {
       const params = new URLSearchParams();
       if (options.device) params.set("deviceId", options.device);
       const query = params.toString();
-      const queue = await requestAstroBox<AstroBoxQueueStatusResponse>(
+      const queue = await requestAstroBoxCompatible<AstroBoxQueueStatusResponse, LegacyQueueStatusResponse>(
         `/v2/queue/status${query ? `?${query}` : ""}`,
+        "/queue/status",
+        undefined,
+        (response) => normalizeLegacyQueueStatus(response, options.device),
       );
 
       if (queue.devices.length === 0) {
@@ -75,9 +85,11 @@ function createStatusCommand(): Command {
 }
 
 async function changeQueueState(deviceId: string, action: "start" | "stop"): Promise<void> {
-  const result = await requestAstroBox<AstroBoxQueueControlResponse>(
+  const result = await requestAstroBoxCompatible<AstroBoxQueueControlResponse, LegacyOkResponse>(
     `/v2/queue/${pathSegment(deviceId)}/${action}`,
+    `/queue/${action}`,
     { method: "POST" },
+    (response) => normalizeLegacyControl(response),
   );
   console.log(result.message ?? `Queue ${action} requested for ${deviceId}`);
 }
@@ -109,8 +121,11 @@ function createTaskCommand(): Command {
     .description("Show an install task by task ID")
     .argument("<taskId>", "task ID to query")
     .action(async (taskId: string) => {
-      const task = await requestAstroBox<AstroBoxQueueTaskResponse>(
+      const task = await requestAstroBoxCompatible<AstroBoxQueueTaskResponse, LegacyQueueStatusResponse>(
         `/v2/queue/tasks/${pathSegment(taskId)}`,
+        "/queue/status",
+        undefined,
+        (response) => normalizeLegacyTask(response, taskId),
       );
       const lines = [
         `Task:     ${task.taskId}`,
@@ -130,10 +145,27 @@ function createRemoveCommand(): Command {
   return new Command("remove")
     .description("Cancel an install task by task ID")
     .argument("<taskId>", "task ID to cancel")
-    .action(async (taskId: string) => {
-      const result = await requestAstroBox<AstroBoxQueueControlResponse>(
+    .option("--queue <type>", 'legacy queue type: "install" or "download"', "install")
+    .action(async (taskId: string, options: { queue: string }) => {
+      if (options.queue !== "install" && options.queue !== "download") {
+        fail(`Invalid queue type: ${options.queue}`);
+      }
+      if (options.queue === "download" && (await getAstroBoxApiVersion()) === "v2") {
+        fail('The v2 API only supports the install queue; omit "--queue download".');
+      }
+
+      const v2Init: RequestInit = { method: "DELETE" };
+      const legacyInit: RequestInit = {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, queue: options.queue }),
+      };
+      const result = await requestAstroBoxCompatible<AstroBoxQueueControlResponse, LegacyOkResponse>(
         `/v2/queue/tasks/${pathSegment(taskId)}`,
-        { method: "DELETE" },
+        "/queue/remove",
+        v2Init,
+        (response) => normalizeLegacyControl(response),
+        legacyInit,
       );
       console.log(result.message ?? `Task ${taskId} canceled`);
     });

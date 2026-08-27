@@ -1,6 +1,13 @@
 import { Command } from "commander";
 
-import { pathSegment, requestAstroBox } from "../lib/api";
+import { pathSegment, requestAstroBox, requestAstroBoxCompatible } from "../lib/api";
+import {
+  normalizeLegacyConnect,
+  normalizeLegacyDevice,
+  normalizeLegacyDeviceList,
+  type LegacyConnectResponse,
+  type LegacyDeviceListResponse,
+} from "../lib/compat";
 import { fail } from "../lib/errors";
 import { jsonOutput, selectDevice } from "../lib/device";
 import type {
@@ -34,7 +41,12 @@ function createListCommand(): Command {
   return new Command("list")
     .description("List saved devices and their connection status")
     .action(async () => {
-      const result = await requestAstroBox<AstroBoxDeviceListResponse>("/v2/devices");
+      const result = await requestAstroBoxCompatible<AstroBoxDeviceListResponse, LegacyDeviceListResponse>(
+        "/v2/devices",
+        "/device/list",
+        undefined,
+        normalizeLegacyDeviceList,
+      );
       const lines = [`Devices: ${result.devices.length}`];
       if (result.devices.length > 0) {
         lines.push(...result.devices.map(formatDeviceDetail));
@@ -50,8 +62,11 @@ function createShowCommand(): Command {
     .option("--device <deviceId>", "target device ID")
     .action(async (positionalDeviceId: string | undefined, options: { device?: string }) => {
       const deviceId = await selectDevice(positionalDeviceId, options);
-      const result = await requestAstroBox<AstroBoxDevice>(
+      const result = await requestAstroBoxCompatible<AstroBoxDevice, LegacyDeviceListResponse>(
         `/v2/devices/${pathSegment(deviceId)}`,
+        "/device/list",
+        undefined,
+        (response) => normalizeLegacyDevice(response, deviceId),
       );
       console.log(renderDeviceFull(result));
     });
@@ -263,11 +278,25 @@ function buildConnectBody(options: ConnectOptions): AstroBoxConnectRequest {
 async function sendConnectRequest(
   body: AstroBoxConnectRequest,
 ): Promise<AstroBoxConnectResponse> {
-  return requestAstroBox<AstroBoxConnectResponse>("/v2/devices/connect", {
+  const v2Init: RequestInit = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-  });
+  };
+  const legacyBody = { ...body };
+  delete legacyBody.kind;
+  const legacyInit: RequestInit = {
+    ...v2Init,
+    body: JSON.stringify(legacyBody),
+  };
+
+  return requestAstroBoxCompatible<AstroBoxConnectResponse, LegacyConnectResponse>(
+    "/v2/devices/connect",
+    "/device/connect",
+    v2Init,
+    (response) => normalizeLegacyConnect(response, body.addr),
+    legacyInit,
+  );
 }
 
 function createConnectCommand(): Command {

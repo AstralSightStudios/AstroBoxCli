@@ -1,4 +1,5 @@
-import { requestAstroBox } from "./api";
+import { requestAstroBoxCompatible } from "./api";
+import { normalizeLegacyDeviceList, type LegacyDeviceListResponse } from "./compat";
 import { fail } from "./errors";
 import type { AstroBoxDevice, AstroBoxDeviceListResponse } from "../types/astrobox";
 
@@ -19,7 +20,12 @@ function renderConnectedDevices(devices: AstroBoxDevice[]): string {
 export async function resolveDeviceId(deviceId?: string): Promise<string> {
   if (deviceId) return deviceId;
 
-  const result = await requestAstroBox<AstroBoxDeviceListResponse>("/v2/devices");
+  const result = await requestAstroBoxCompatible<AstroBoxDeviceListResponse, LegacyDeviceListResponse>(
+    "/v2/devices",
+    "/device/list",
+    undefined,
+    normalizeLegacyDeviceList,
+  );
   const connected = result.devices.filter(isConnected);
 
   if (connected.length === 1) return connected[0].deviceId;

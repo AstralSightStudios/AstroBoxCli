@@ -1,6 +1,6 @@
 # AstroBox CLI
 
-A command-line interface for interacting with [AstroBox](https://astrobox.online) through its authenticated Local API v2 — open the app, check devices, manage queues, browse providers, and install local resources.
+A command-line interface for interacting with [AstroBox](https://astrobox.online) through AstroBox Local API v2, with automatic fallback to the legacy API — open the app, check devices, manage queues, browse providers, and install local resources.
 
 ## Installation
 
@@ -18,7 +18,7 @@ Requires Node.js >= 20.
 
 ## Authentication
 
-The first authenticated command creates an Ed25519 client identity in:
+On Local API v2, the first authenticated command creates an Ed25519 client identity in:
 
 ```text
 ~/.config/astrobox-cli/credentials.json
@@ -27,6 +27,15 @@ The first authenticated command creates an Ed25519 client identity in:
 The CLI prints a pairing request and waits for you to approve it in AstroBox. After approval, it creates a short-lived Bearer session automatically. The private key and session token stay in the credentials file and are not printed.
 
 To use another credentials path, set `ASTROBOX_CLI_CONFIG` before running the CLI. To choose the client name shown by AstroBox, set `ASTROBOX_CLI_CLIENT_NAME`.
+
+## API compatibility
+
+The CLI probes AstroBox once per process and selects the API automatically:
+
+- Local API v2 uses Ed25519 pairing and Bearer sessions.
+- Older AstroBox versions use the unauthenticated legacy endpoints such as `/status`, `/device/list`, `/queue/status`, and `/provider/list`.
+- Device status/details/connect, queue operations, installation, and provider commands are supported on both APIs. Legacy responses are normalized to the current CLI output.
+- Device data, watchface management, quick-app management, and device disconnect require Local API v2 and report a clear error on older AstroBox versions.
 
 ## Usage
 
@@ -44,7 +53,7 @@ Commands:
 
 ### `astrobox-cli open`
 
-Opens AstroBox using the `astrobox://` protocol URL. This is the only command that does not require Local API authentication.
+Opens AstroBox using the `astrobox://` protocol URL. It is also the only command that does not contact the Local API.
 
 ```bash
 astrobox-cli open
@@ -111,7 +120,7 @@ astrobox-cli queue task <taskId>
 astrobox-cli queue remove <taskId>
 ```
 
-`queue remove` uses `DELETE /v2/queue/tasks/:taskId`; the old `--queue install|download` option is no longer supported by Local API v2.
+`queue remove` uses `DELETE /v2/queue/tasks/:taskId` on v2 and the legacy `POST /queue/remove` endpoint on older AstroBox versions. The legacy `--queue install|download` option remains available for old installations.
 
 For commands that operate on one device, `--device` is optional. If exactly one device is connected, it is selected automatically. If none or multiple devices are connected, the CLI reports the problem; with multiple devices, use `--device <deviceId>`. The old positional device argument for `queue start` and `queue stop` remains supported.
 

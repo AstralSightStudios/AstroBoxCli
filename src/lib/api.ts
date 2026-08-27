@@ -74,11 +74,44 @@ export function pathSegment(value: string): string {
   return encodeURIComponent(value);
 }
 
+export type AstroBoxApiVersion = "v2" | "legacy";
+
+let apiVersionPromise: Promise<AstroBoxApiVersion> | undefined;
+
+async function detectApiVersion(): Promise<AstroBoxApiVersion> {
+  try {
+    await performRequest<unknown>("/v2/devices");
+    return "v2";
+  } catch (error) {
+    if (error instanceof AstroBoxApiError) {
+      if (error.status === 401 || error.status === 403) return "v2";
+      if (error.status === 404) return "legacy";
+    }
+    throw error;
+  }
+}
+
+export function getAstroBoxApiVersion(): Promise<AstroBoxApiVersion> {
+  if (!apiVersionPromise) {
+    apiVersionPromise = detectApiVersion();
+  }
+  return apiVersionPromise;
+}
+
 export function requestAstroBoxPublic<T>(path: string, init?: RequestInit): Promise<T> {
   return performRequest<T>(path, init);
 }
 
 export async function requestAstroBox<T>(path: string, init?: RequestInit): Promise<T> {
+  const apiVersion = await getAstroBoxApiVersion();
+  if (apiVersion === "legacy") {
+    throw new AstroBoxApiError(
+      501,
+      "legacy_api_unsupported",
+      "This command requires AstroBox Local API v2; the connected AstroBox only provides the legacy API.",
+    );
+  }
+
   let token = await getSessionToken();
   const headers = new Headers(init?.headers);
   headers.set("Authorization", `Bearer ${token}`);
@@ -96,4 +129,18 @@ export async function requestAstroBox<T>(path: string, init?: RequestInit): Prom
     retryHeaders.set("Authorization", `Bearer ${token}`);
     return performRequest<T>(path, { ...init, headers: retryHeaders });
   }
+}
+
+export async function requestAstroBoxCompatible<T, L = T>(
+  v2Path: string,
+  legacyPath: string,
+  init?: RequestInit,
+  legacyTransform: (value: L) => T = (value) => value as unknown as T,
+  legacyInit: RequestInit | undefined = init,
+): Promise<T> {
+  if ((await getAstroBoxApiVersion()) === "legacy") {
+    const legacyResponse = await performRequest<L>(legacyPath, legacyInit);
+    return legacyTransform(legacyResponse);
+  }
+  return requestAstroBox<T>(v2Path, init);
 }

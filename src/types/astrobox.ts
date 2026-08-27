@@ -22,7 +22,10 @@ export type AstroBoxDevicesResponse = {
   devices: AstroBoxDevice[];
 };
 
-export type AstroBoxStatusResponse = AstroBoxDevicesResponse;
+export type AstroBoxStatusResponse = AstroBoxDevicesResponse & {
+  /** Present only when status came from the legacy /status endpoint. */
+  astroBoxConnected?: boolean;
+};
 export type AstroBoxDeviceListResponse = AstroBoxDevicesResponse;
 export type AstroBoxDeviceDetail = AstroBoxDevice;
 export type AstroBoxDeviceData = unknown;

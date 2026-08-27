@@ -1,6 +1,24 @@
 import { Command } from "commander";
 
-import { pathSegment, requestAstroBox } from "../lib/api";
+import { pathSegment, requestAstroBoxCompatible } from "../lib/api";
+import {
+  normalizeLegacyControl,
+  normalizeLegacyProviderCategories,
+  normalizeLegacyProviderDownload,
+  normalizeLegacyProviderItem,
+  normalizeLegacyProviderList,
+  normalizeLegacyProviderPage,
+  normalizeLegacyProviderState,
+  normalizeLegacyProviderTotal,
+  type LegacyOkResponse,
+  type LegacyProviderCategoriesResponse,
+  type LegacyProviderDownloadResponse,
+  type LegacyProviderItemResponse,
+  type LegacyProviderListResponse,
+  type LegacyProviderPageResponse,
+  type LegacyProviderStateResponse,
+  type LegacyProviderTotalResponse,
+} from "../lib/compat";
 import { fail } from "../lib/errors";
 import type {
   AstroBoxProviderCategoriesResponse,
@@ -21,6 +39,10 @@ function providerPath(providerId: string): string {
   return `/v2/providers/${pathSegment(providerId)}`;
 }
 
+function legacyProviderPath(providerId: string): string {
+  return `/provider/${pathSegment(providerId)}`;
+}
+
 function renderPageItem(item: AstroBoxProviderPageItem): string {
   const lines = [`[${item.restype}] ${item.name}`, `  id: ${item.id}`];
   if (item.description) lines.push(`  ${item.description}`);
@@ -31,7 +53,12 @@ function createListCommand(): Command {
   return new Command("list")
     .description("List available providers")
     .action(async () => {
-      const result = await requestAstroBox<AstroBoxProviderListResponse>("/v2/providers");
+      const result = await requestAstroBoxCompatible<AstroBoxProviderListResponse, LegacyProviderListResponse>(
+        "/v2/providers",
+        "/provider/list",
+        undefined,
+        normalizeLegacyProviderList,
+      );
       console.log(result.providers.join("\n"));
     });
 }
@@ -41,8 +68,11 @@ function createStateCommand(): Command {
     .description("Get provider state")
     .argument("<name>", "provider name")
     .action(async (name: string) => {
-      const result = await requestAstroBox<AstroBoxProviderStateResponse>(
+      const result = await requestAstroBoxCompatible<AstroBoxProviderStateResponse, LegacyProviderStateResponse>(
         `${providerPath(name)}/state`,
+        `${legacyProviderPath(name)}/state`,
+        undefined,
+        normalizeLegacyProviderState,
       );
       console.log(result.state);
     });
@@ -53,8 +83,11 @@ function createCategoriesCommand(): Command {
     .description("Get provider category list")
     .argument("<name>", "provider name")
     .action(async (name: string) => {
-      const result = await requestAstroBox<AstroBoxProviderCategoriesResponse>(
+      const result = await requestAstroBoxCompatible<AstroBoxProviderCategoriesResponse, LegacyProviderCategoriesResponse>(
         `${providerPath(name)}/categories`,
+        `${legacyProviderPath(name)}/categories`,
+        undefined,
+        normalizeLegacyProviderCategories,
       );
       console.log(result.categories.join("\n"));
     });
@@ -68,11 +101,20 @@ function createRefreshCommand(): Command {
     .action(async (name: string, options: { cfg: string }) => {
       console.log("Refreshing...");
       const body: AstroBoxProviderRefreshRequest = { cfg: options.cfg };
-      await requestAstroBox<void>(`${providerPath(name)}/refresh`, {
+      const init: RequestInit = {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      });
+      };
+      await requestAstroBoxCompatible<void, LegacyOkResponse>(
+        `${providerPath(name)}/refresh`,
+        `${legacyProviderPath(name)}/refresh`,
+        init,
+        (response) => {
+          normalizeLegacyControl(response);
+          return undefined;
+        },
+      );
       console.log(`Provider ${name} refreshed`);
     });
 }
@@ -126,8 +168,11 @@ function createPageCommand(): Command {
     .action(async (name: string, options: PageOptions) => {
       const { inputPage, inputLimit, apiPage } = parsePaginationOptions(options);
       const params = buildPageParams(apiPage, inputLimit, options);
-      const result = await requestAstroBox<AstroBoxProviderPageResponse>(
+      const result = await requestAstroBoxCompatible<AstroBoxProviderPageResponse, LegacyProviderPageResponse>(
         `${providerPath(name)}/items?${params.toString()}`,
+        `${legacyProviderPath(name)}/page?${params.toString()}`,
+        undefined,
+        normalizeLegacyProviderPage,
       );
 
       console.log(`Page ${inputPage} · ${result.items.length} items\n`);
@@ -186,8 +231,11 @@ function createItemCommand(): Command {
     .argument("<name>", "provider name")
     .argument("<id>", "item id")
     .action(async (name: string, id: string) => {
-      const result = await requestAstroBox<AstroBoxProviderItemResponse>(
+      const result = await requestAstroBoxCompatible<AstroBoxProviderItemResponse, LegacyProviderItemResponse>(
         `${providerPath(name)}/items/${pathSegment(id)}`,
+        `${legacyProviderPath(name)}/item/${pathSegment(id)}`,
+        undefined,
+        normalizeLegacyProviderItem,
       );
       console.log(renderProviderManifest(result.item));
     });
@@ -198,8 +246,11 @@ function createTotalCommand(): Command {
     .description("Get total item count for a provider")
     .argument("<name>", "provider name")
     .action(async (name: string) => {
-      const result = await requestAstroBox<AstroBoxProviderTotalResponse>(
+      const result = await requestAstroBoxCompatible<AstroBoxProviderTotalResponse, LegacyProviderTotalResponse>(
         `${providerPath(name)}/total`,
+        `${legacyProviderPath(name)}/total`,
+        undefined,
+        normalizeLegacyProviderTotal,
       );
       console.log(result.total);
     });
@@ -219,12 +270,25 @@ function createDownloadCommand(): Command {
       device?: string;
       trial: boolean;
     }) => {
-      const params = new URLSearchParams({ trial: String(options.trial) });
-      if (options.downloadKey) params.set("downloadKey", options.downloadKey);
-      if (options.device) params.set("providerDeviceKey", options.device);
+      const v2Params = new URLSearchParams({ trial: String(options.trial) });
+      if (options.downloadKey) v2Params.set("downloadKey", options.downloadKey);
+      if (options.device) v2Params.set("providerDeviceKey", options.device);
 
-      const result = await requestAstroBox<AstroBoxProviderDownloadResponse>(
-        `${providerPath(name)}/items/${pathSegment(options.id)}/download?${params.toString()}`,
+      const legacyParams = new URLSearchParams({
+        id: options.id,
+        trial: String(options.trial),
+      });
+      if (options.downloadKey) legacyParams.set("downloadKey", options.downloadKey);
+      if (options.device) legacyParams.set("device", options.device);
+
+      const result = await requestAstroBoxCompatible<
+        AstroBoxProviderDownloadResponse,
+        LegacyProviderDownloadResponse
+      >(
+        `${providerPath(name)}/items/${pathSegment(options.id)}/download?${v2Params.toString()}`,
+        `${legacyProviderPath(name)}/download?${legacyParams.toString()}`,
+        undefined,
+        normalizeLegacyProviderDownload,
       );
       const download = result.download;
       console.log(download.display_name);
